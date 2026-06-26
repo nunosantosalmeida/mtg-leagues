@@ -1,0 +1,134 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  passwordHash  String?
+  image         String?
+  role          String    @default("PLAYER")
+  provider      String    @default("credentials")
+  createdAt     DateTime  @default(now())
+
+  leaguesCreated League[]
+  leaguePlayers  LeaguePlayer[]
+}
+
+model League {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  format      String   @default("COMMANDER")
+  bestOf      Int      @default(1)
+  totalDays   Int      @default(5)
+  status      String   @default("REGISTRATION")
+  createdBy   String
+  createdAt   DateTime @default(now())
+
+  creator    User           @relation(fields: [createdBy], references: [id])
+  players    LeaguePlayer[]
+  days       LeagueDay[]
+}
+
+model LeaguePlayer {
+  id        String   @id @default(cuid())
+  leagueId  String
+  userId    String
+  points    Float    @default(1500)
+  joinedAt  DateTime @default(now())
+  isActive  Boolean  @default(true)
+
+  league League @relation(fields: [leagueId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  tablePlayers    TablePlayer[]
+  pointChanges    PlayerPointChange[]
+  roundAbsences   RoundAbsence[]
+
+  @@unique([leagueId, userId])
+}
+
+model LeagueDay {
+  id        String   @id @default(cuid())
+  leagueId  String
+  dayNumber Int
+  date      DateTime
+  status    String   @default("PLANNED")
+  type      String   @default("REGULAR")
+  name      String?
+
+  league League @relation(fields: [leagueId], references: [id])
+  rounds Round[]
+
+  @@unique([leagueId, dayNumber])
+}
+
+model Round {
+  id          String   @id @default(cuid())
+  leagueDayId String
+  roundNumber Int
+  status      String   @default("PLANNED")
+  name        String?
+
+  leagueDay  LeagueDay      @relation(fields: [leagueDayId], references: [id])
+  tables     Table[]
+  absences   RoundAbsence[]
+  pointChanges PlayerPointChange[]
+
+  @@unique([leagueDayId, roundNumber])
+}
+
+model RoundAbsence {
+  id              String @id @default(cuid())
+  roundId         String
+  leaguePlayerId  String
+
+  round         Round         @relation(fields: [roundId], references: [id])
+  leaguePlayer  LeaguePlayer @relation(fields: [leaguePlayerId], references: [id])
+
+  @@unique([roundId, leaguePlayerId])
+}
+
+model Table {
+  id          String @id @default(cuid())
+  roundId     String
+  tableNumber Int
+
+  round   Round          @relation(fields: [roundId], references: [id])
+  players TablePlayer[]
+}
+
+model TablePlayer {
+  id              String @id @default(cuid())
+  tableId         String
+  leaguePlayerId  String
+  seatPosition    Int
+  result          String @default("PENDING")
+  pointsWagered   Float
+  pointsChange    Float  @default(0)
+
+  table        Table        @relation(fields: [tableId], references: [id])
+  leaguePlayer LeaguePlayer @relation(fields: [leaguePlayerId], references: [id])
+
+  @@unique([tableId, leaguePlayerId])
+}
+
+model PlayerPointChange {
+  id              String   @id @default(cuid())
+  leaguePlayerId  String
+  roundId         String?
+  type            String
+  amount          Float
+  description     String?
+  createdAt       DateTime @default(now())
+
+  leaguePlayer LeaguePlayer @relation(fields: [leaguePlayerId], references: [id])
+  round        Round?        @relation(fields: [roundId], references: [id])
+}
