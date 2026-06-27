@@ -555,7 +555,7 @@ export default function LeagueDayPage() {
                       );
                     }
 
-                    if (isAdmin && round.status === "IN_PROGRESS") {
+                    if (isAdmin && round.status === "IN_PROGRESS" && prevRoundCompleted) {
                       const allowDraws = !(isPlayoff && !isCommanderFormat(league.format));
                       return (
                         <ResultForm
