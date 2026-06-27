@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { assignRandomTables, randomizeSeats } from "@/lib/pairing/random";
 import { calculateBet } from "@/lib/points/calculator";
+import { isCommanderFormat } from "@/lib/types";
 
 type AssignParams = { id: string; roundId: string };
 
@@ -99,7 +100,7 @@ export async function POST(
           .filter((p) => !absentIds.has(p.id))
           .sort((a, b) => b.points - a.points);
 
-        const requiredPlayers = round.name === "Finals" ? 4 : (league.format === "COMMANDER" ? 4 : 2);
+        const requiredPlayers = round.name === "Finals" ? 4 : (isCommanderFormat(league.format) ? 4 : 2);
         const finalsPlayers = allStandings.slice(0, requiredPlayers);
 
         const table = await prisma.table.create({
@@ -204,9 +205,9 @@ export async function POST(
     }
 
     const playerIds = playingPlayers.map((p: { id: string }) => p.id);
-    const tables = assignRandomTables(playerIds, league.format === "COMMANDER" ? 4 : 2);
+    const tables = assignRandomTables(playerIds, isCommanderFormat(league.format) ? 4 : 2);
 
-    const byePlayerId = (league.format !== "COMMANDER" && playerIds.length % 2 !== 0)
+    const byePlayerId = (!isCommanderFormat(league.format) && playerIds.length % 2 !== 0)
       ? playerIds[playerIds.length - 1]
       : null;
 

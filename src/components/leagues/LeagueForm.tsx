@@ -97,6 +97,8 @@ export function LeagueForm() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="COMMANDER">Commander</SelectItem>
+                  <SelectItem value="COMMANDER_PRECONS">Commander Precons</SelectItem>
+                  <SelectItem value="CEDH">cEDH</SelectItem>
                   <SelectItem value="STANDARD">Standard</SelectItem>
                   <SelectItem value="MODERN">Modern</SelectItem>
                   <SelectItem value="PIONEER">Pioneer</SelectItem>

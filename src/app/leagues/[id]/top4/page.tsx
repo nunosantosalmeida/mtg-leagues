@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import Link from "next/link";
+import { LeagueNav } from "@/components/leagues/LeagueNav";
 
 interface Qualifier {
   id: string;
@@ -130,10 +130,9 @@ export default function Top4Page() {
             }>{league.status.replace("_", " ")}</Badge>
           </p>
         </div>
-        <Link href={`/leagues/${leagueId}`} className="inline-flex items-center justify-center rounded-lg border-border bg-background hover:bg-muted hover:text-foreground text-sm font-medium whitespace-nowrap transition-all h-8 gap-1.5 px-2.5">
-          Back to League
-        </Link>
       </div>
+
+      <LeagueNav leagueId={leagueId} />
 
       {league.status === "COMPLETED" && rankings.length > 0 ? (
         <Card>

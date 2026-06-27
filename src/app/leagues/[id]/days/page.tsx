@@ -6,6 +6,15 @@ import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { LeagueNav } from "@/components/leagues/LeagueNav";
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import Link from "next/link";
 
 interface Round {
@@ -87,6 +96,22 @@ export default function LeagueDaysPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      <Breadcrumb className="mb-4">
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/leagues">Leagues</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbLink href={`/leagues/${leagueId}`}>{league.name}</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>Schedule</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold">{league.name} - Schedule</h1>
@@ -94,17 +119,17 @@ export default function LeagueDaysPage() {
             {league.days.length} days • {league.players.length} players
           </p>
         </div>
-        <div className="flex gap-2">
-          {isAdmin && league.days.length === 0 && (league.status === "REGISTRATION" || league.status === "IN_PROGRESS") && (
-            <Button onClick={handleCreateDays} disabled={creating}>
-              {creating ? "Creating..." : "Create League Days"}
-            </Button>
-          )}
-          <Link href={`/leagues/${leagueId}`} className="inline-flex items-center justify-center rounded-lg border-border bg-background hover:bg-muted hover:text-foreground text-sm font-medium whitespace-nowrap transition-all h-8 gap-1.5 px-2.5">
-            Back to League
-          </Link>
-        </div>
       </div>
+
+      <LeagueNav leagueId={leagueId} active="schedule" />
+
+      {isAdmin && league.days.length === 0 && (league.status === "REGISTRATION" || league.status === "IN_PROGRESS") && (
+        <div className="mb-4">
+          <Button onClick={handleCreateDays} disabled={creating}>
+            {creating ? "Creating..." : "Create League Days"}
+          </Button>
+        </div>
+      )}
 
       {league.days.length === 0 ? (
         <Card>

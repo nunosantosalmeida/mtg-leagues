@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { generateBracket, getSeedsFromStandings, getCommanderTopCut } from "@/lib/playoff/bracket";
+import { isCommanderFormat } from "@/lib/types";
 
 type PlayoffParams = { id: string };
 
@@ -49,7 +50,7 @@ export async function POST(
 
     const activePlayers = players.filter((p) => !absentPlayerIds.includes(p.id));
 
-    const topCut = league.format === "COMMANDER"
+    const topCut = isCommanderFormat(league.format)
       ? getCommanderTopCut(activePlayers.length)
       : requestedTopCut;
 
@@ -109,7 +110,7 @@ export async function POST(
     });
     let nextRoundNumber = (maxRound._max.roundNumber ?? 0) + 1;
 
-    if (league.format === "COMMANDER") {
+    if (isCommanderFormat(league.format)) {
       const hasSemifinals = bracket.pods.length > 0;
 
       if (hasSemifinals) {

@@ -2,7 +2,24 @@ export type Role = "ADMIN" | "PLAYER";
 
 export type LeagueStatus = "REGISTRATION" | "IN_PROGRESS" | "COMPLETED" | "TOP4";
 
-export type Format = "COMMANDER" | "STANDARD" | "MODERN" | "PIONEER" | "PAUPER";
+export type Format = "COMMANDER" | "COMMANDER_PRECONS" | "CEDH" | "STANDARD" | "MODERN" | "PIONEER" | "PAUPER";
+
+export function isCommanderFormat(format: string): boolean {
+  return format === "COMMANDER" || format === "COMMANDER_PRECONS" || format === "CEDH";
+}
+
+export function formatDisplayName(format: string): string {
+  switch (format) {
+    case "COMMANDER": return "Commander";
+    case "COMMANDER_PRECONS": return "Commander Precons";
+    case "CEDH": return "cEDH";
+    case "STANDARD": return "Standard";
+    case "MODERN": return "Modern";
+    case "PIONEER": return "Pioneer";
+    case "PAUPER": return "Pauper";
+    default: return format;
+  }
+}
 
 export type DayStatus = "PLANNED" | "COMPLETED";
 

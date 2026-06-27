@@ -38,6 +38,9 @@ export async function GET(
         (tp) => tp.result !== "PENDING"
       );
 
+      const penalties = results.filter((tp) => tp.result === "ABSENT").length;
+      const losses = results.filter((tp) => tp.result !== "WIN" && tp.result !== "DRAW" && tp.result !== "ABSENT").length;
+
       return {
         leaguePlayerId: lp.id,
         userId: lp.user.id,
@@ -47,7 +50,8 @@ export async function GET(
         roundsPlayed: results.length,
         wins: results.filter((tp) => tp.result === "WIN").length,
         draws: results.filter((tp) => tp.result === "DRAW").length,
-        losses: results.filter((tp) => tp.result === "ABSENT" || (tp.result !== "WIN" && tp.result !== "DRAW")).length,
+        losses,
+        penalties,
         pointHistory: lp.pointChanges.map((pc) => ({
           type: pc.type,
           amount: pc.amount,

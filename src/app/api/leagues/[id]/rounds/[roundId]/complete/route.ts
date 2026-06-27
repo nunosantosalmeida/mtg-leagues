@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { calculateTableResults, calculateBet, TableCalculationInput } from "@/lib/points/calculator";
+import { isCommanderFormat } from "@/lib/types";
 
 type CompleteParams = { id: string; roundId: string };
 
@@ -71,8 +72,8 @@ export async function POST(
     }
 
     const isPlayoff = round.leagueDay.type === "PLAYOFF";
-    const isCommanderSemifinal = round.name === "Semifinals" && league.format === "COMMANDER";
-    const isCommanderFinals = round.name === "Finals" && league.format === "COMMANDER";
+    const isCommanderSemifinal = round.name === "Semifinals" && isCommanderFormat(league.format);
+    const isCommanderFinals = round.name === "Finals" && isCommanderFormat(league.format);
     const skipPointCalc = isCommanderSemifinal || isCommanderFinals;
     const isFinalRound = round.name === "Finals" || round.name === "Final";
 

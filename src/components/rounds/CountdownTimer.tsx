@@ -6,14 +6,35 @@ import { PlayIcon, PauseIcon, RotateCcwIcon, ClockIcon, Minimize2Icon } from "lu
 
 interface CountdownTimerProps {
   defaultMinutes: number;
+  roundId: string;
+  inline?: boolean;
 }
 
-export function CountdownTimer({ defaultMinutes }: CountdownTimerProps) {
+function getStorageKey(roundId: string, field: string) {
+  return `timer:${roundId}:${field}`;
+}
+
+export function CountdownTimer({ defaultMinutes, roundId, inline }: CountdownTimerProps) {
   const totalSeconds = defaultMinutes * 60;
   const [remaining, setRemaining] = useState(totalSeconds);
   const [running, setRunning] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    const stored = localStorage.getItem(getStorageKey(roundId, "remaining"));
+    if (stored !== null) setRemaining(Number(stored));
+    const wasRunning = localStorage.getItem(getStorageKey(roundId, "running"));
+    if (wasRunning === "true") setRunning(true);
+  }, [roundId]);
+
+  useEffect(() => {
+    localStorage.setItem(getStorageKey(roundId, "remaining"), String(remaining));
+  }, [remaining, roundId]);
+
+  useEffect(() => {
+    localStorage.setItem(getStorageKey(roundId, "running"), String(running));
+  }, [running, roundId]);
 
   useEffect(() => {
     if (running && remaining > 0) {
@@ -72,6 +93,30 @@ export function CountdownTimer({ defaultMinutes }: CountdownTimerProps) {
     : isLow
     ? "bg-orange-500"
     : "bg-foreground";
+
+  if (inline) {
+    return (
+      <div className="flex items-center gap-3">
+        <span className={`font-mono text-lg font-bold tabular-nums ${timerColor}`}>
+          {timeStr}
+        </span>
+        <div className="flex items-center gap-1">
+          {!running ? (
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleStart} disabled={remaining === 0}>
+              <PlayIcon className="h-3.5 w-3.5" />
+            </Button>
+          ) : (
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handlePause}>
+              <PauseIcon className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleReset}>
+            <RotateCcwIcon className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

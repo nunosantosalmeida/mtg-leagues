@@ -9,6 +9,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ResultForm } from "@/components/results/ResultForm";
 import { SeatDisplay } from "@/components/rounds/SeatDisplay";
 import { CountdownTimer } from "@/components/rounds/CountdownTimer";
+import { LeagueNav } from "@/components/leagues/LeagueNav";
+import { isCommanderFormat } from "@/lib/types";
+import { Progress } from "@/components/ui/progress";
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import Link from "next/link";
 
 interface TablePlayer {
@@ -321,9 +332,7 @@ export default function LeagueDayPage() {
         )}
 
         <div className="mt-8">
-          <Link href={`/leagues/${leagueId}`} className="inline-flex items-center justify-center rounded-lg border-border bg-background hover:bg-muted hover:text-foreground text-sm font-medium whitespace-nowrap transition-all h-8 gap-1.5 px-2.5">
-            Back to League
-          </Link>
+          <LeagueNav leagueId={leagueId} active="schedule" />
         </div>
       </div>
     );
@@ -331,6 +340,26 @@ export default function LeagueDayPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      <Breadcrumb className="mb-4">
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/leagues">Leagues</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbLink href={`/leagues/${leagueId}`}>{league.name}</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbLink href={`/leagues/${leagueId}/days`}>Schedule</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>{currentDay.name || `Day ${currentDay.dayNumber}`}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold">
@@ -364,14 +393,31 @@ export default function LeagueDayPage() {
           {currentDay.status === "COMPLETED" && (
             <Badge variant="default">Day Closed</Badge>
           )}
-          <Link href={`/leagues/${leagueId}`} className="inline-flex items-center justify-center rounded-lg border-border bg-background hover:bg-muted hover:text-foreground text-sm font-medium whitespace-nowrap transition-all h-8 gap-1.5 px-2.5">
-            Back to League
-          </Link>
         </div>
       </div>
 
+      <LeagueNav leagueId={leagueId} active="schedule" />
+
+      {currentDay.rounds.length > 0 && (
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm text-muted-foreground">Round Progress</p>
+            <p className="text-sm text-muted-foreground">
+              {currentDay.rounds.filter((r) => r.status === "COMPLETED").length} / {currentDay.rounds.length}
+            </p>
+          </div>
+          <Progress
+            value={
+              currentDay.rounds.length > 0
+                ? (currentDay.rounds.filter((r) => r.status === "COMPLETED").length / currentDay.rounds.length) * 100
+                : 0
+            }
+          />
+        </div>
+      )}
+
       <div className="space-y-6">
-        {currentDay.rounds.map((round) => {
+        {currentDay.rounds.map((round, roundIdx) => {
           const allResultsRecorded = round.tables.length > 0 &&
             round.tables.every((table) =>
               table.players.every((p) => p.result !== "PENDING")
@@ -380,7 +426,8 @@ export default function LeagueDayPage() {
             round.tables.every((table) =>
               table.players.every((p) => p.result === "PENDING")
             );
-          const canAssign = round.status === "PLANNED" || (round.status === "IN_PROGRESS" && noResultsRecorded);
+          const prevRoundCompleted = roundIdx === 0 || currentDay.rounds[roundIdx - 1].status === "COMPLETED";
+          const canAssign = prevRoundCompleted && (round.status === "PLANNED" || (round.status === "IN_PROGRESS" && noResultsRecorded));
 
           return (
           <Card key={round.id}>
@@ -398,10 +445,10 @@ export default function LeagueDayPage() {
                   {round.status === "IN_PROGRESS" && round.tables.length > 0 && (
                     <>
                       <SeatDisplay tables={round.tables} roundName={round.name || `Round ${round.roundNumber}`} />
-                      <CountdownTimer defaultMinutes={league.format === "COMMANDER" ? 75 : 50} />
+                      <CountdownTimer defaultMinutes={isCommanderFormat(league.format) ? 75 : 50} roundId={round.id} />
                     </>
                   )}
-                  {isAdmin && canAssign && round.tables.length === 0 && !(isPlayoff && league.format !== "COMMANDER" && round.name !== "Quarterfinals") && (
+                  {isAdmin && canAssign && round.tables.length === 0 && !(isPlayoff && !isCommanderFormat(league.format) && round.name !== "Quarterfinals") && (
                     <Button
                       size="sm"
                       onClick={() => handleAssignTables(round.id)}
@@ -410,7 +457,7 @@ export default function LeagueDayPage() {
                       {assigning === round.id ? "Assigning..." : "Assign Tables"}
                     </Button>
                   )}
-                  {isAdmin && canAssign && round.tables.length > 0 && !(isPlayoff && league.format !== "COMMANDER" && round.name !== "Quarterfinals") && (
+                  {isAdmin && canAssign && round.tables.length > 0 && !(isPlayoff && !isCommanderFormat(league.format) && round.name !== "Quarterfinals") && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -443,7 +490,7 @@ export default function LeagueDayPage() {
               </div>
             </CardHeader>
             <CardContent>
-              {isAdmin && canAssign && !(isPlayoff && league.format !== "COMMANDER" && round.name !== "Quarterfinals") && (
+              {isAdmin && canAssign && !(isPlayoff && !isCommanderFormat(league.format) && round.name !== "Quarterfinals") && (
                 <div className="space-y-4 mb-6">
                   <p className="text-sm text-muted-foreground">
                     {round.tables.length === 0
@@ -509,7 +556,7 @@ export default function LeagueDayPage() {
                     }
 
                     if (isAdmin && round.status === "IN_PROGRESS") {
-                      const allowDraws = !(isPlayoff && league.format !== "COMMANDER");
+                      const allowDraws = !(isPlayoff && !isCommanderFormat(league.format));
                       return (
                         <ResultForm
                           key={table.id}
