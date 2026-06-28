@@ -21,12 +21,17 @@ interface League {
     rounds: {
       tables: {
         players: {
+          result: string | null;
           leaguePlayer: {
             user: { name: string };
           };
         }[];
       }[];
     }[];
+  }[];
+  players: {
+    points: number;
+    user: { name: string };
   }[];
 }
 
@@ -38,17 +43,25 @@ const statusColors: Record<string, string> = {
 };
 
 function getWinnerName(league: League): string | null {
+  if (league.status !== "COMPLETED") return null;
+
   for (const day of league.days) {
     for (const round of day.rounds) {
       for (const table of round.tables) {
         for (const tp of table.players) {
-          if (tp.leaguePlayer?.user?.name) {
+          if (tp.result === "WIN" && tp.leaguePlayer?.user?.name) {
             return tp.leaguePlayer.user.name;
           }
         }
       }
     }
   }
+
+  if (league.players && league.players.length > 0) {
+    const sorted = [...league.players].sort((a, b) => b.points - a.points);
+    return sorted[0]?.user?.name ?? null;
+  }
+
   return null;
 }
 

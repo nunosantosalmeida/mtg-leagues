@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { assignRandomTables, randomizeSeats } from "@/lib/pairing/random";
+import { assignSwissPairings, SwissPlayer } from "@/lib/pairing/swiss";
 import { calculateBet } from "@/lib/points/calculator";
 import { isCommanderFormat } from "@/lib/types";
 
@@ -51,7 +52,28 @@ export async function POST(
       return NextResponse.json({ error: "Round not found" }, { status: 404 });
     }
 
+    const prevRound = await prisma.round.findFirst({
+      where: {
+        leagueDayId: round.leagueDayId,
+        roundNumber: round.roundNumber - 1,
+      },
+      select: { status: true },
+    });
+    if (prevRound && prevRound.status !== "COMPLETED") {
+      return NextResponse.json(
+        { error: "Previous round must be completed before assigning tables" },
+        { status: 400 }
+      );
+    }
+
     if (round.tables.length > 0) {
+      if (league.scoringSystem === "COMPETITIVE" && !isCommanderFormat(league.format)) {
+        return NextResponse.json(
+          { error: "Cannot re-assign tables for Traditional scoring leagues" },
+          { status: 400 }
+        );
+      }
+
       const hasResults = await prisma.tablePlayer.findFirst({
         where: {
           table: { roundId: roundId },
@@ -204,83 +226,205 @@ export async function POST(
       );
     }
 
-    const playerIds = playingPlayers.map((p: { id: string }) => p.id);
-    const tables = assignRandomTables(playerIds, isCommanderFormat(league.format) ? 4 : 2);
-
-    const byePlayerId = (!isCommanderFormat(league.format) && playerIds.length % 2 !== 0)
-      ? playerIds[playerIds.length - 1]
-      : null;
-
+    const is1v1 = !isCommanderFormat(league.format);
     const createdTables: Awaited<ReturnType<typeof prisma.table.create>>[] = [];
+    let byePlayerId: string | null = null;
 
-    for (let i = 0; i < tables.length; i++) {
-      const tablePlayers = tables[i];
-      const seats = randomizeSeats(tablePlayers);
-
-      const table = await prisma.table.create({
-        data: {
-          roundId: roundId,
-          tableNumber: i + 1,
-          players: {
-            create: seats.map((seat) => {
-              const player = activePlayers.find((p: { id: string; points: number }) => p.id === seat.playerId);
-              return {
-                leaguePlayerId: seat.playerId,
-                seatPosition: seat.seatPosition,
-                pointsWagered: player ? calculateBet(player.points) : 0,
-              };
-            }),
+    if (is1v1) {
+      const allTablePlayers = await prisma.tablePlayer.findMany({
+        where: {
+          table: {
+            round: {
+              leagueDay: { leagueId: id },
+              status: "COMPLETED",
+            },
           },
+          result: { not: "PENDING" },
         },
         include: {
-          players: {
+          table: {
             include: {
-              leaguePlayer: {
-                include: { user: { select: { name: true } } },
-              },
+              players: { select: { leaguePlayerId: true } },
             },
           },
         },
       });
 
-      createdTables.push(table);
-    }
+      const previousMatchups = new Set<string>();
+      for (const tp of allTablePlayers) {
+        if (tp.table.players.length === 2) {
+          const opp = tp.table.players.find((p) => p.leaguePlayerId !== tp.leaguePlayerId);
+          if (opp) {
+            const key = [tp.leaguePlayerId, opp.leaguePlayerId].sort().join(":");
+            previousMatchups.add(key);
+          }
+        }
+      }
 
-    if (byePlayerId) {
-      const byePlayer = activePlayers.find((p) => p.id === byePlayerId);
-      if (byePlayer) {
-        const bet = calculateBet(byePlayer.points);
+      const previousByeTables = await prisma.tablePlayer.findMany({
+        where: {
+          table: {
+            round: {
+              leagueDay: { leagueId: id },
+              status: "COMPLETED",
+            },
+            players: { some: {} },
+          },
+          result: "WIN",
+        },
+        include: {
+          table: { select: { _count: { select: { players: true } } } },
+        },
+      });
 
-        await prisma.table.create({
+      const previousByes = new Set<string>();
+      for (const tp of previousByeTables) {
+        if (tp.table._count.players === 1) {
+          previousByes.add(tp.leaguePlayerId);
+        }
+      }
+
+      const playerMatchPoints = new Map<string, number>();
+      for (const p of playingPlayers) {
+        const tpResults = allTablePlayers.filter(
+          (tp) => tp.leaguePlayerId === p.id
+        );
+        const mp = tpResults.reduce((sum, tp) => sum + tp.matchPoints, 0);
+        playerMatchPoints.set(p.id, mp);
+      }
+
+      const swissPlayers: SwissPlayer[] = playingPlayers.map((p) => ({
+        id: p.id,
+        matchPoints: playerMatchPoints.get(p.id) ?? 0,
+      }));
+
+      const swissResult = assignSwissPairings(
+        swissPlayers,
+        previousMatchups,
+        previousByes,
+        round.roundNumber,
+      );
+
+      byePlayerId = swissResult.byePlayerId;
+
+      for (let i = 0; i < swissResult.pairs.length; i++) {
+        const pair = swissResult.pairs[i];
+        const seats = [
+          { playerId: pair.player1Id, seatPosition: 1 },
+          { playerId: pair.player2Id, seatPosition: 2 },
+        ];
+
+        const table = await prisma.table.create({
           data: {
             roundId: roundId,
-            tableNumber: createdTables.length + 1,
+            tableNumber: i + 1,
             players: {
-              create: {
-                leaguePlayerId: byePlayerId,
-                seatPosition: 1,
-                result: "WIN",
-                pointsWagered: bet,
-                pointsChange: bet,
+              create: seats.map((seat) => {
+                const player = activePlayers.find((p) => p.id === seat.playerId);
+                return {
+                  leaguePlayerId: seat.playerId,
+                  seatPosition: seat.seatPosition,
+                  pointsWagered: player ? calculateBet(player.points) : 0,
+                };
+              }),
+            },
+          },
+          include: {
+            players: {
+              include: {
+                leaguePlayer: {
+                  include: { user: { select: { name: true } } },
+                },
               },
             },
           },
         });
 
-        await prisma.leaguePlayer.update({
-          where: { id: byePlayerId },
-          data: { points: { increment: bet } },
-        });
+        createdTables.push(table);
+      }
+    } else {
+      const playerIds = playingPlayers.map((p: { id: string }) => p.id);
+      const tables = assignRandomTables(playerIds, 4);
 
-        await prisma.playerPointChange.create({
+      for (let i = 0; i < tables.length; i++) {
+        const tablePlayers = tables[i];
+        const seats = randomizeSeats(tablePlayers);
+
+        const table = await prisma.table.create({
           data: {
-            leaguePlayerId: byePlayerId,
             roundId: roundId,
-            type: "WIN",
-            amount: bet,
-            description: `Day ${round.leagueDay.dayNumber} (${round.leagueDay.name || "Regular"}) - Round ${round.roundNumber} - Bye`,
+            tableNumber: i + 1,
+            players: {
+              create: seats.map((seat) => {
+                const player = activePlayers.find((p: { id: string; points: number }) => p.id === seat.playerId);
+                return {
+                  leaguePlayerId: seat.playerId,
+                  seatPosition: seat.seatPosition,
+                  pointsWagered: player ? calculateBet(player.points) : 0,
+                };
+              }),
+            },
+          },
+          include: {
+            players: {
+              include: {
+                leaguePlayer: {
+                  include: { user: { select: { name: true } } },
+                },
+              },
+            },
           },
         });
+
+        createdTables.push(table);
+      }
+
+      if (playerIds.length % 2 !== 0) {
+        byePlayerId = playerIds[playerIds.length - 1];
+      }
+    }
+
+    if (byePlayerId) {
+      const byePlayer = activePlayers.find((p) => p.id === byePlayerId);
+      if (byePlayer) {
+        if (is1v1 && league.scoringSystem === "COMPETITIVE") {
+          const BYE_MATCH_POINTS = 3;
+
+          await prisma.table.create({
+            data: {
+              roundId: roundId,
+              tableNumber: createdTables.length + 1,
+              players: {
+                create: {
+                  leaguePlayerId: byePlayerId,
+                  seatPosition: 1,
+                  result: "WIN",
+                  pointsWagered: 0,
+                  pointsChange: 0,
+                  matchPoints: BYE_MATCH_POINTS,
+                },
+              },
+            },
+          });
+        } else {
+          const bet = calculateBet(byePlayer.points);
+
+          await prisma.table.create({
+            data: {
+              roundId: roundId,
+              tableNumber: createdTables.length + 1,
+              players: {
+                create: {
+                  leaguePlayerId: byePlayerId,
+                  seatPosition: 1,
+                  result: "WIN",
+                  pointsWagered: bet,
+                  pointsChange: 0,
+                },
+              },
+            },
+          });
+        }
       }
     }
 

@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { generateBracket, getSeedsFromStandings, getCommanderTopCut } from "@/lib/playoff/bracket";
 import { isCommanderFormat } from "@/lib/types";
+import { computeTiebreakers, sortCompetitiveStandings, CompetitiveStanding, MatchRecord } from "@/lib/points/competitive";
 
 type PlayoffParams = { id: string };
 
@@ -45,6 +46,17 @@ export async function POST(
         pointChanges: {
           include: { round: { include: { leagueDay: true } } },
         },
+        tablePlayers: {
+          include: {
+            table: {
+              include: {
+                players: {
+                  select: { leaguePlayerId: true, result: true },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
@@ -65,7 +77,7 @@ export async function POST(
       );
     }
 
-    const standings = computeStandings(activePlayers);
+    const standings = computeStandings(activePlayers, league.scoringSystem === "COMPETITIVE");
 
     const qualified = standings.slice(0, topCut);
     const seeds = getSeedsFromStandings(
@@ -269,7 +281,21 @@ function computeStandings(
         leagueDay: { type: string };
       } | null;
     }[];
+    tablePlayers: {
+      result: string;
+      matchPoints: number;
+      gamesWon: number;
+      gamesDrawn: number;
+      gamesLost: number;
+      table: {
+        players: {
+          leaguePlayerId: string;
+          result: string;
+        }[];
+      };
+    }[];
   }[],
+  isCompetitive: boolean,
 ): PlayerStanding[] {
   const playerStats: PlayerStanding[] = [];
 
@@ -303,6 +329,77 @@ function computeStandings(
       opponentMatchWinPercentage,
       gameWinPercentage,
     });
+  }
+
+  if (isCompetitive && !isCommanderFormat("1v1")) {
+    const matchRecords = new Map<string, MatchRecord[]>();
+    const matchStats = new Map<string, { matchPoints: number; roundsPlayed: number; gamesWon: number; gamesDrawn: number; gamesLost: number }>();
+
+    for (const player of players) {
+      const standing = playerStats.find(s => s.leaguePlayerId === player.id);
+      if (!standing) continue;
+
+      matchStats.set(player.id, {
+        matchPoints: standing.wins * 3 + standing.draws,
+        roundsPlayed: standing.matchesPlayed,
+        gamesWon: player.tablePlayers.reduce((sum, tp) => sum + tp.gamesWon, 0),
+        gamesDrawn: player.tablePlayers.reduce((sum, tp) => sum + tp.gamesDrawn, 0),
+        gamesLost: player.tablePlayers.reduce((sum, tp) => sum + tp.gamesLost, 0),
+      });
+
+      const records: MatchRecord[] = [];
+      for (const tp of player.tablePlayers) {
+        if (tp.result === "PENDING" || tp.table.players.length <= 1) continue;
+        const opponents = tp.table.players.filter(p => p.leaguePlayerId !== player.id && p.result !== "PENDING");
+        for (const opp of opponents) {
+          records.push({
+            opponentId: opp.leaguePlayerId,
+            result: tp.result as "WIN" | "DRAW" | "ABSENT" | "LOSS",
+            gamesWon: tp.gamesWon,
+            gamesDrawn: tp.gamesDrawn,
+            gamesLost: tp.gamesLost,
+            isBye: false,
+          });
+        }
+      }
+      matchRecords.set(player.id, records);
+    }
+
+    const tiebreakers = computeTiebreakers(matchRecords, matchStats);
+
+    for (const standing of playerStats) {
+      const tb = tiebreakers.get(standing.leaguePlayerId);
+      if (tb) {
+        standing.opponentMatchWinPercentage = tb.omwPercentage;
+        standing.gameWinPercentage = tb.gwPercentage;
+      }
+    }
+
+    return sortCompetitiveStandings(
+      playerStats.map(s => {
+        const player = players.find(p => p.id === s.leaguePlayerId);
+        const stats = matchStats.get(s.leaguePlayerId);
+        return {
+          leaguePlayerId: s.leaguePlayerId,
+          playerName: s.playerName,
+          matchPoints: stats?.matchPoints ?? 0,
+          roundsPlayed: s.matchesPlayed,
+          wins: s.wins,
+          draws: s.draws,
+          losses: s.losses,
+          omwPercentage: s.opponentMatchWinPercentage,
+          gwPercentage: s.gameWinPercentage,
+          ogwPercentage: 0,
+          gamesWon: player?.tablePlayers.reduce((sum, tp) => sum + tp.gamesWon, 0) ?? 0,
+          gamesDrawn: player?.tablePlayers.reduce((sum, tp) => sum + tp.gamesDrawn, 0) ?? 0,
+          gamesLost: player?.tablePlayers.reduce((sum, tp) => sum + tp.gamesLost, 0) ?? 0,
+        };
+      })
+    ).map(s => ({
+      ...playerStats.find(ps => ps.leaguePlayerId === s.leaguePlayerId)!,
+      opponentMatchWinPercentage: s.omwPercentage,
+      gameWinPercentage: s.gwPercentage,
+    }));
   }
 
   return playerStats.sort((a, b) => {

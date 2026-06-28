@@ -38,7 +38,13 @@ export async function POST(
     }
 
     const days = [];
-    const startDate = new Date();
+    const today = new Date();
+    const startDate = new Date(today);
+    const currentDayOfWeek = today.getDay();
+    let daysUntilTarget = league.weekday - currentDayOfWeek;
+    if (daysUntilTarget <= 0) daysUntilTarget += 7;
+    startDate.setDate(today.getDate() + daysUntilTarget);
+
     let roundCounter = 1;
 
     for (let i = 1; i <= league.totalDays; i++) {
@@ -55,14 +61,18 @@ export async function POST(
         },
       });
 
-      await prisma.round.createMany({
-        data: [
-          { leagueDayId: day.id, roundNumber: roundCounter, status: "PLANNED" },
-          { leagueDayId: day.id, roundNumber: roundCounter + 1, status: "PLANNED" },
-        ],
-      });
+      const roundsData = [];
+      for (let r = 0; r < league.roundsPerDay; r++) {
+        roundsData.push({
+          leagueDayId: day.id,
+          roundNumber: roundCounter + r,
+          status: "PLANNED" as const,
+        });
+      }
 
-      roundCounter += 2;
+      await prisma.round.createMany({ data: roundsData });
+
+      roundCounter += league.roundsPerDay;
       days.push(day);
     }
 

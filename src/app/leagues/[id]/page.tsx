@@ -21,6 +21,14 @@ import { Trophy, Users, Swords, Clock } from "lucide-react";
 import { CountdownTimer } from "@/components/rounds/CountdownTimer";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import Link from "next/link";
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 
 interface LeaguePlayer {
   id: string;
@@ -37,6 +45,7 @@ interface League {
   bestOf: number;
   totalDays: number;
   status: string;
+  scoringSystem: string;
   createdAt: string;
   players: LeaguePlayer[];
   creator: { name: string };
@@ -286,6 +295,13 @@ export default function LeagueDetailPage() {
         }
       }
     }
+
+    if (!leagueWinner && league.status === "COMPLETED") {
+      const topPlayer = [...league.players].sort((a, b) => b.points - a.points)[0];
+      if (topPlayer) {
+        leagueWinner = { id: topPlayer.user.id, name: topPlayer.user.name };
+      }
+    }
   }
 
   const availablePlayers = allPlayers.filter(
@@ -294,6 +310,18 @@ export default function LeagueDetailPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      <Breadcrumb className="mb-4">
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/leagues">Leagues</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>{league.name}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
       <div className="flex items-center justify-between mb-8">
         <div>
           <div className="flex items-center gap-3">
@@ -584,6 +612,7 @@ export default function LeagueDetailPage() {
                   .sort((a, b) => b.points - a.points)
                   .map((player, index) => {
                     const playing = playingInfo[player.user.id];
+                    const isTop = league.status === "COMPLETED" && index === 0;
                     return (
                       <div key={player.id} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -591,6 +620,7 @@ export default function LeagueDetailPage() {
                           <span className={playing ? "text-red-500 font-semibold" : ""}>
                             {player.user.name}
                           </span>
+                          {isTop && <span className="text-yellow-500">🏆</span>}
                           {playing && (
                             <Badge variant="outline" className="text-red-500 border-red-500 text-xs">
                               R{playing.round} • T{playing.table} • Seat {playing.seat}

@@ -22,6 +22,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { PointsChart } from "@/components/standings/PointsChart";
+import { isCommanderFormat } from "@/lib/types";
 
 interface StandingEntry {
   leaguePlayerId: string;
@@ -29,16 +30,22 @@ interface StandingEntry {
   userName: string;
   userEmail: string;
   points: number;
+  matchPoints: number;
   roundsPlayed: number;
   wins: number;
   draws: number;
   losses: number;
   penalties: number;
+  omwPercentage: number;
+  gwPercentage: number;
+  ogwPercentage: number;
   pointHistory: { amount: number; description: string | null; createdAt: string }[];
 }
 
 interface LeagueData {
   name: string;
+  format: string;
+  scoringSystem: string;
   days: { rounds: unknown[] }[];
 }
 
@@ -68,6 +75,9 @@ export default function StandingsPage() {
   }
 
   const totalRounds = leagueData?.days.reduce((sum, d) => sum + d.rounds.length, 0) ?? 0;
+  const isCompetitive = leagueData?.scoringSystem === "COMPETITIVE";
+  const is1v1 = leagueData?.format && !isCommanderFormat(leagueData.format);
+  const isTraditional1v1 = is1v1 && !isCompetitive;
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -106,19 +116,32 @@ export default function StandingsPage() {
                 <TableRow>
                   <TableHead className="w-[60px]">#</TableHead>
                   <TableHead>Player</TableHead>
-                  <TableHead className="text-right">Points</TableHead>
+                  <TableHead className="text-right">
+                    {is1v1 ? "Score" : isCompetitive ? "MP" : "Points"}
+                  </TableHead>
                   <TableHead className="text-center">Played</TableHead>
                   <TableHead className="text-center">Wins</TableHead>
                   <TableHead className="text-center">Draws</TableHead>
                   <TableHead className="text-center">Losses</TableHead>
-                  <TableHead className="text-center">Penalties</TableHead>
-                  <TableHead className="text-center">Attendance</TableHead>
+                  {!isCompetitive && !isTraditional1v1 && (
+                    <TableHead className="text-center">Penalties</TableHead>
+                  )}
+                  {isCompetitive && (
+                    <>
+                      <TableHead className="text-center">OMW%</TableHead>
+                      <TableHead className="text-center">GW%</TableHead>
+                      <TableHead className="text-center">OGW%</TableHead>
+                    </>
+                  )}
+                  {!isCompetitive && !isTraditional1v1 && (
+                    <TableHead className="text-center">Attendance</TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {standings.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8">
+                    <TableCell colSpan={isCompetitive ? 10 : isTraditional1v1 ? 7 : 9} className="text-center py-8">
                       No players yet
                     </TableCell>
                   </TableRow>
@@ -145,7 +168,7 @@ export default function StandingsPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right font-mono text-lg">
-                        {entry.points}
+                        {leagueData?.scoringSystem === "COMPETITIVE" ? entry.matchPoints : entry.points}
                       </TableCell>
                       <TableCell className="text-center">{entry.roundsPlayed}</TableCell>
                       <TableCell className="text-center">
@@ -157,18 +180,35 @@ export default function StandingsPage() {
                       <TableCell className="text-center">
                         <span className="text-red-600">{entry.losses}</span>
                       </TableCell>
-                      <TableCell className="text-center">
-                        {entry.penalties > 0 ? (
-                          <span className="text-red-600">{entry.penalties}</span>
-                        ) : (
-                          <span className="text-muted-foreground">0</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <span className={attendance >= 80 ? "text-green-600" : attendance >= 50 ? "text-yellow-600" : "text-red-600"}>
-                          {attendance}%
-                        </span>
-                      </TableCell>
+                      {!isCompetitive && !isTraditional1v1 && (
+                        <TableCell className="text-center">
+                          {entry.penalties > 0 ? (
+                            <span className="text-red-600">{entry.penalties}</span>
+                          ) : (
+                            <span className="text-muted-foreground">0</span>
+                          )}
+                        </TableCell>
+                      )}
+                      {isCompetitive && (
+                        <>
+                          <TableCell className="text-center font-mono">
+                            {(entry.omwPercentage * 100).toFixed(1)}%
+                          </TableCell>
+                          <TableCell className="text-center font-mono">
+                            {(entry.gwPercentage * 100).toFixed(1)}%
+                          </TableCell>
+                          <TableCell className="text-center font-mono">
+                            {(entry.ogwPercentage * 100).toFixed(1)}%
+                          </TableCell>
+                        </>
+                      )}
+                      {!isCompetitive && !isTraditional1v1 && (
+                        <TableCell className="text-center">
+                          <span className={attendance >= 80 ? "text-green-600" : attendance >= 50 ? "text-yellow-600" : "text-red-600"}>
+                            {attendance}%
+                          </span>
+                        </TableCell>
+                      )}
                     </TableRow>
                     );
                   })

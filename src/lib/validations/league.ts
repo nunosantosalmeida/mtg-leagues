@@ -6,6 +6,9 @@ export const createLeagueSchema = z.object({
   format: z.enum(["COMMANDER", "COMMANDER_PRECONS", "CEDH", "STANDARD", "MODERN", "PIONEER", "PAUPER"]),
   bestOf: z.coerce.number().min(1).max(5).default(1),
   totalDays: z.coerce.number().min(1).max(20).default(5),
+  roundsPerDay: z.coerce.number().min(1).max(10).default(2),
+  weekday: z.coerce.number().min(0).max(6).default(5),
+  scoringSystem: z.enum(["POINTS", "COMPETITIVE"]).default("POINTS"),
 });
 
 export const joinLeagueSchema = z.object({

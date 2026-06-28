@@ -39,15 +39,10 @@ const COLORS = [
 ];
 
 export function PointsChart({ players }: PointsChartProps) {
-  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [solo, setSolo] = useState<string | null>(null);
 
   function togglePlayer(name: string) {
-    setHidden((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      return next;
-    });
+    setSolo((prev) => (prev === name ? null : name));
   }
 
   const allRounds = new Set<number>();
@@ -88,13 +83,13 @@ export function PointsChart({ players }: PointsChartProps) {
       <CardContent>
         <div className="flex flex-wrap gap-3 mb-4">
           {players.map((player, i) => {
-            const isHidden = hidden.has(player.name);
+            const isActive = solo === null || solo === player.name;
             return (
               <button
                 key={player.name}
                 onClick={() => togglePlayer(player.name)}
                 className={`flex items-center gap-2 text-sm px-2 py-1 rounded transition-opacity ${
-                  isHidden ? "opacity-30" : "opacity-100"
+                  isActive ? "opacity-100" : "opacity-30"
                 }`}
               >
                 <span
@@ -124,7 +119,7 @@ export function PointsChart({ players }: PointsChartProps) {
                 }}
               />
               {players.map((player, i) =>
-                hidden.has(player.name) ? null : (
+                solo !== null && solo !== player.name ? null : (
                   <Line
                     key={player.name}
                     type="monotone"

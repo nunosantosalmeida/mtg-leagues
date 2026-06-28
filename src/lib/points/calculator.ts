@@ -75,7 +75,7 @@ export function calculateTableResults(players: TableCalculationInput[]): TableCa
 
     if (player.result === "WIN") {
       const winnerPot = calculateWinnerPot(bets, tableSize);
-      let pointsChange = winnerPot - bet;
+      let pointsChange = tableSize === 1 ? bet : winnerPot - bet;
       let changeType: TableCalculationResult["changeType"] = "WIN";
 
       if (tableSize === 3) {

@@ -29,9 +29,11 @@ function TableCard({ table }: { table: TableInfo }) {
       <div className="space-y-0.5">
         {table.players.map((p) => (
           <div key={p.seatPosition} className="flex items-baseline gap-2">
-            <span className="text-xs font-mono text-muted-foreground">
-              {p.seatPosition}°
-            </span>
+            {table.players.length > 2 && (
+              <span className="text-xs font-mono text-muted-foreground">
+                {p.seatPosition}°
+              </span>
+            )}
             <span className="text-base font-bold">{p.name}</span>
           </div>
         ))}
