@@ -469,7 +469,7 @@ export default function LeagueDayPage() {
               table.players.every((p) => p.result === "PENDING")
             );
           const prevRoundCompleted = roundIdx === 0 || currentDay.rounds[roundIdx - 1].status === "COMPLETED";
-          const canAssign = prevRoundCompleted && (round.status === "PLANNED" || (round.status === "IN_PROGRESS" && noResultsRecorded));
+          const canAssign = prevRoundCompleted && (round.status === "PLANNED" || (round.status === "IN_PROGRESS" && (round.tables.length === 0 || noResultsRecorded)));
 
           return (
           <Collapsible
