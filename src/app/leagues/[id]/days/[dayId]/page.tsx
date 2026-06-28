@@ -597,7 +597,7 @@ export default function LeagueDayPage() {
                         onClick={() => handleSaveAbsences(round.id)}
                         disabled={savingAbsences === round.id}
                       >
-                        {savingAbsences === round.id ? "Saving..." : canAssign && round.tables.length > 0 && !(league.scoringSystem === "COMPETITIVE" && !isCommanderFormat(league.format)) ? "Save & Re-assign" : "Save Absences"}
+                        {savingAbsences === round.id ? "Saving..." : canAssign && !(league.scoringSystem === "COMPETITIVE" && !isCommanderFormat(league.format)) ? "Save & Assign" : "Save Absences"}
                       </Button>
                     </CollapsibleContent>
                   </Collapsible>
