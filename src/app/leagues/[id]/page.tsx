@@ -322,15 +322,15 @@ export default function LeagueDetailPage() {
         </BreadcrumbList>
       </Breadcrumb>
 
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold">{league.name}</h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl sm:text-3xl font-bold">{league.name}</h1>
             <Badge variant="outline" className={statusColors[league.status]}>
               {league.status.replace("_", " ")}
             </Badge>
           </div>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
             {formatDisplayName(league.format)} • Best of {league.bestOf} • {league.totalDays} league days
           </p>
         </div>

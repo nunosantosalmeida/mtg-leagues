@@ -111,7 +111,7 @@ export default function StandingsPage() {
       <Card>
         <CardContent className="p-0">
           <div className="max-h-[600px] overflow-auto">
-            <Table>
+            <Table className="min-w-[600px]">
               <TableHeader className="sticky top-0 bg-card z-10">
                 <TableRow>
                   <TableHead className="w-[60px]">#</TableHead>
@@ -119,22 +119,22 @@ export default function StandingsPage() {
                   <TableHead className="text-right">
                     {is1v1 ? "Score" : isCompetitive ? "MP" : "Points"}
                   </TableHead>
-                  <TableHead className="text-center">Played</TableHead>
-                  <TableHead className="text-center">Wins</TableHead>
-                  <TableHead className="text-center">Draws</TableHead>
-                  <TableHead className="text-center">Losses</TableHead>
+                  <TableHead className="text-center hidden sm:table-cell">Played</TableHead>
+                  <TableHead className="text-center">W</TableHead>
+                  <TableHead className="text-center">D</TableHead>
+                  <TableHead className="text-center">L</TableHead>
                   {!isCompetitive && !isTraditional1v1 && (
-                    <TableHead className="text-center">Penalties</TableHead>
+                    <TableHead className="text-center hidden md:table-cell">Pen</TableHead>
                   )}
                   {isCompetitive && (
                     <>
-                      <TableHead className="text-center">OMW%</TableHead>
-                      <TableHead className="text-center">GW%</TableHead>
-                      <TableHead className="text-center">OGW%</TableHead>
+                      <TableHead className="text-center hidden lg:table-cell">OMW%</TableHead>
+                      <TableHead className="text-center hidden lg:table-cell">GW%</TableHead>
+                      <TableHead className="text-center hidden lg:table-cell">OGW%</TableHead>
                     </>
                   )}
                   {!isCompetitive && !isTraditional1v1 && (
-                    <TableHead className="text-center">Attendance</TableHead>
+                    <TableHead className="text-center hidden sm:table-cell">Attn</TableHead>
                   )}
                 </TableRow>
               </TableHeader>
@@ -164,13 +164,13 @@ export default function StandingsPage() {
                       <TableCell>
                         <div>
                           <div className="font-medium">{entry.userName}</div>
-                          <div className="text-sm text-muted-foreground">{entry.userEmail}</div>
+                          <div className="text-xs text-muted-foreground hidden sm:block">{entry.userEmail}</div>
                         </div>
                       </TableCell>
                       <TableCell className="text-right font-mono text-lg">
                         {leagueData?.scoringSystem === "COMPETITIVE" ? entry.matchPoints : entry.points}
                       </TableCell>
-                      <TableCell className="text-center">{entry.roundsPlayed}</TableCell>
+                      <TableCell className="text-center hidden sm:table-cell">{entry.roundsPlayed}</TableCell>
                       <TableCell className="text-center">
                         <span className="text-green-600">{entry.wins}</span>
                       </TableCell>
@@ -181,7 +181,7 @@ export default function StandingsPage() {
                         <span className="text-red-600">{entry.losses}</span>
                       </TableCell>
                       {!isCompetitive && !isTraditional1v1 && (
-                        <TableCell className="text-center">
+                        <TableCell className="text-center hidden md:table-cell">
                           {entry.penalties > 0 ? (
                             <span className="text-red-600">{entry.penalties}</span>
                           ) : (
@@ -191,19 +191,19 @@ export default function StandingsPage() {
                       )}
                       {isCompetitive && (
                         <>
-                          <TableCell className="text-center font-mono">
+                          <TableCell className="text-center font-mono hidden lg:table-cell">
                             {(entry.omwPercentage * 100).toFixed(1)}%
                           </TableCell>
-                          <TableCell className="text-center font-mono">
+                          <TableCell className="text-center font-mono hidden lg:table-cell">
                             {(entry.gwPercentage * 100).toFixed(1)}%
                           </TableCell>
-                          <TableCell className="text-center font-mono">
+                          <TableCell className="text-center font-mono hidden lg:table-cell">
                             {(entry.ogwPercentage * 100).toFixed(1)}%
                           </TableCell>
                         </>
                       )}
                       {!isCompetitive && !isTraditional1v1 && (
-                        <TableCell className="text-center">
+                        <TableCell className="text-center hidden sm:table-cell">
                           <span className={attendance >= 80 ? "text-green-600" : attendance >= 50 ? "text-yellow-600" : "text-red-600"}>
                             {attendance}%
                           </span>
