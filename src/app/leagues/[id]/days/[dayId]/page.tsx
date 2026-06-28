@@ -568,7 +568,7 @@ export default function LeagueDayPage() {
                       </p>
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-4 gap-y-1">
                         {[...league.players]
-                          .sort((a, b) => b.points - a.points)
+                          .sort((a, b) => a.user.name.localeCompare(b.user.name))
                           .map((player) => {
                             const isAbsent = absentByRound[round.id]
                               ? absentByRound[round.id].has(player.id)
