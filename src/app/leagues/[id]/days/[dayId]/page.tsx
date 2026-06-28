@@ -285,7 +285,7 @@ export default function LeagueDayPage() {
 
       if (response.ok) {
         const round = currentDay?.rounds.find((r) => r.id === roundId);
-        const canReassign = round && (round.status === "PLANNED" || (round.status === "IN_PROGRESS" && round.tables.length > 0 && round.tables.every((t) => t.players.every((p) => p.result === "PENDING"))));
+        const canReassign = round && (round.status === "PLANNED" || (round.status === "IN_PROGRESS" && (round.tables.length === 0 || round.tables.every((t) => t.players.every((p) => p.result === "PENDING")))));
         if (canReassign) {
           await fetch(`/api/leagues/${leagueId}/rounds/${roundId}/tables/assign`, {
             method: "POST",
