@@ -703,6 +703,38 @@ export default function LeagueDayPage() {
                   })}
                 </div>
               )}
+
+              {round.status === "COMPLETED" && (() => {
+                const absentPlayers = round.tables
+                  .flatMap((t) => t.players)
+                  .filter((p) => p.result === "ABSENT");
+                if (absentPlayers.length === 0) return null;
+                const totalPenalty = absentPlayers.reduce((sum, p) => sum + Math.abs(p.pointsChange), 0);
+                return (
+                  <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
+                    <p className="text-sm font-medium text-red-800 dark:text-red-300 mb-1">
+                      Absences ({absentPlayers.length})
+                    </p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1">
+                      {absentPlayers.map((p) => (
+                        <span key={p.id} className="text-sm text-red-700 dark:text-red-400">
+                          {p.leaguePlayer.user.name}
+                          {!isPlayoff && league.scoringSystem !== "COMPETITIVE" && (
+                            <span className="ml-1 font-mono">
+                              ({Math.round(p.pointsChange)})
+                            </span>
+                          )}
+                        </span>
+                      ))}
+                    </div>
+                    {!isPlayoff && league.scoringSystem !== "COMPETITIVE" && (
+                      <p className="text-xs text-red-600 dark:text-red-500 mt-1">
+                        Total penalty: {Math.round(totalPenalty)} pts
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
             </CardContent>
             </CollapsibleContent>
           </Card>
