@@ -378,10 +378,6 @@ export async function POST(
 
         createdTables.push(table);
       }
-
-      if (playerIds.length % 2 !== 0) {
-        byePlayerId = playerIds[playerIds.length - 1];
-      }
     }
 
     if (byePlayerId) {
