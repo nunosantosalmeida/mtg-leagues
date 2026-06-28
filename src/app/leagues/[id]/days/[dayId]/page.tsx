@@ -707,7 +707,8 @@ export default function LeagueDayPage() {
               {round.status === "COMPLETED" && (() => {
                 const absentPlayers = round.tables
                   .flatMap((t) => t.players)
-                  .filter((p) => p.result === "ABSENT");
+                  .filter((p) => p.result === "ABSENT")
+                  .sort((a, b) => a.leaguePlayer.user.name.localeCompare(b.leaguePlayer.user.name));
                 if (absentPlayers.length === 0) return null;
                 const totalPenalty = absentPlayers.reduce((sum, p) => sum + Math.abs(p.pointsChange), 0);
                 return (
