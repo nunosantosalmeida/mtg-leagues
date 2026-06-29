@@ -27,7 +27,13 @@ export async function GET(
             rounds: {
               include: {
                 absences: {
-                  select: { leaguePlayerId: true },
+                  include: {
+                    leaguePlayer: {
+                      include: {
+                        user: { select: { name: true } },
+                      },
+                    },
+                  },
                 },
                 tables: {
                   include: {
@@ -55,7 +61,39 @@ export async function GET(
       return NextResponse.json({ error: "League not found" }, { status: 404 });
     }
 
-    return NextResponse.json(league);
+    const roundIds = league.days.flatMap(d => d.rounds.map(r => r.id));
+    const absenceChanges = await prisma.playerPointChange.findMany({
+      where: {
+        roundId: { in: roundIds },
+        type: "ABSENT",
+      },
+      select: {
+        leaguePlayerId: true,
+        roundId: true,
+        amount: true,
+      },
+    });
+
+    const penaltyMap = new Map<string, number>();
+    for (const change of absenceChanges) {
+      penaltyMap.set(`${change.roundId}:${change.leaguePlayerId}`, Math.abs(change.amount));
+    }
+
+    const result = {
+      ...league,
+      days: league.days.map(d => ({
+        ...d,
+        rounds: d.rounds.map(r => ({
+          ...r,
+          absences: r.absences.map(a => ({
+            ...a,
+            penalty: penaltyMap.get(`${r.id}:${a.leaguePlayerId}`) ?? 0,
+          })),
+        })),
+      })),
+    };
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Error fetching league:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

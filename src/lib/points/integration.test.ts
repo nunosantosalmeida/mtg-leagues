@@ -126,7 +126,7 @@ describe("Calculator Integration", () => {
     it("calculates WIN for 2-player table", () => {
       const results = calculateTableResults([
         { leaguePlayerId: "p1", points: 1000, result: "WIN" },
-        { leaguePlayerId: "p2", points: 1000, result: "ABSENT" },
+        { leaguePlayerId: "p2", points: 1000, result: "LOSS" },
       ]);
 
       const p1 = results.find((r) => r.leaguePlayerId === "p1");
@@ -137,7 +137,7 @@ describe("Calculator Integration", () => {
       expect(p1?.pointsChange).toBe(70);
       expect(p1?.pointsAfter).toBe(1070);
 
-      expect(p2?.changeType).toBe("NO_SHOW");
+      expect(p2?.changeType).toBe("LOSS");
       expect(p2?.pointsChange).toBe(-70);
       expect(p2?.pointsAfter).toBe(930);
     });
@@ -156,8 +156,8 @@ describe("Calculator Integration", () => {
     it("calculates WIN for 3-player table", () => {
       const results = calculateTableResults([
         { leaguePlayerId: "p1", points: 1000, result: "WIN" },
-        { leaguePlayerId: "p2", points: 1000, result: "ABSENT" },
-        { leaguePlayerId: "p3", points: 1000, result: "ABSENT" },
+        { leaguePlayerId: "p2", points: 1000, result: "LOSS" },
+        { leaguePlayerId: "p3", points: 1000, result: "LOSS" },
       ]);
 
       const p1 = results.find((r) => r.leaguePlayerId === "p1");
@@ -168,9 +168,9 @@ describe("Calculator Integration", () => {
     it("calculates WIN for 4-player table", () => {
       const results = calculateTableResults([
         { leaguePlayerId: "p1", points: 1000, result: "WIN" },
-        { leaguePlayerId: "p2", points: 1000, result: "ABSENT" },
-        { leaguePlayerId: "p3", points: 1000, result: "ABSENT" },
-        { leaguePlayerId: "p4", points: 1000, result: "ABSENT" },
+        { leaguePlayerId: "p2", points: 1000, result: "LOSS" },
+        { leaguePlayerId: "p3", points: 1000, result: "LOSS" },
+        { leaguePlayerId: "p4", points: 1000, result: "LOSS" },
       ]);
 
       const p1 = results.find((r) => r.leaguePlayerId === "p1");
@@ -181,10 +181,10 @@ describe("Calculator Integration", () => {
     it("calculates WIN for 5-player table", () => {
       const results = calculateTableResults([
         { leaguePlayerId: "p1", points: 1000, result: "WIN" },
-        { leaguePlayerId: "p2", points: 1000, result: "ABSENT" },
-        { leaguePlayerId: "p3", points: 1000, result: "ABSENT" },
-        { leaguePlayerId: "p4", points: 1000, result: "ABSENT" },
-        { leaguePlayerId: "p5", points: 1000, result: "ABSENT" },
+        { leaguePlayerId: "p2", points: 1000, result: "LOSS" },
+        { leaguePlayerId: "p3", points: 1000, result: "LOSS" },
+        { leaguePlayerId: "p4", points: 1000, result: "LOSS" },
+        { leaguePlayerId: "p5", points: 1000, result: "LOSS" },
       ]);
 
       const p1 = results.find((r) => r.leaguePlayerId === "p1");

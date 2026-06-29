@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { calculateBet } from "@/lib/points/calculator";
 
 type ReopenParams = { id: string; roundId: string };
 
@@ -78,13 +79,21 @@ export async function POST(
         where: { roundId },
       });
 
+      const playerIds = round.tables.flatMap((t) => t.players.map((tp) => tp.leaguePlayerId));
+      const refreshedPlayers = await tx.leaguePlayer.findMany({
+        where: { id: { in: playerIds } },
+        select: { id: true, points: true },
+      });
+      const refreshedPoints = new Map(refreshedPlayers.map((p) => [p.id, p.points]));
+
       for (const table of round.tables) {
         for (const tp of table.players) {
+          const currentPoints = refreshedPoints.get(tp.leaguePlayerId) ?? 1500;
           await tx.tablePlayer.update({
             where: { id: tp.id },
             data: {
               result: "PENDING",
-              pointsWagered: 0,
+              pointsWagered: calculateBet(currentPoints),
               pointsChange: 0,
             },
           });

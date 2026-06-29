@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LeagueNav } from "@/components/leagues/LeagueNav";
 import { PlayoffBracket } from "@/components/leagues/PlayoffBracket";
 import { Trophy } from "lucide-react";
+import { isCommanderFormat } from "@/lib/types";
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -93,7 +94,7 @@ function buildBracket(league: League): BracketData | null {
   const playoffDay = league.days.find(d => d.type === "PLAYOFF");
   if (!playoffDay) return null;
 
-  const is1v1 = !league.format.startsWith("COMMANDER");
+  const is1v1 = !isCommanderFormat(league.format);
   const rounds = playoffDay.rounds.sort((a, b) => a.roundNumber - b.roundNumber);
 
   const semifinalsRound = rounds.find(r => r.name === "Semifinals");
@@ -190,11 +191,21 @@ function buildBracket(league: League): BracketData | null {
     }
   }
 
+  const hasSemifinals = !!semifinalsRound;
+
   if (finalsRound) {
     for (const table of finalsRound.tables) {
-      if (table.players.length === 1) {
+      if (!hasSemifinals) {
+        for (const p of table.players.sort((a, b) => a.seatPosition - b.seatPosition)) {
+          byes.push({
+            seed: p.seatPosition,
+            name: p.leaguePlayer.user.name,
+            points: p.leaguePlayer.points,
+          });
+        }
+      } else if (table.players.length === 1) {
         byes.push({
-          seed: 1,
+          seed: table.players[0].seatPosition,
           name: table.players[0].leaguePlayer.user.name,
           points: table.players[0].leaguePlayer.points,
         });

@@ -179,7 +179,7 @@ export async function PATCH(
       await prisma.tablePlayer.update({
         where: { id: tp.id },
         data: {
-          result: isWinner ? "WIN" : "ABSENT",
+          result: isWinner ? "WIN" : "LOSS",
           pointsChange,
         },
       });

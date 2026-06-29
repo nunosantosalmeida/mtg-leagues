@@ -70,7 +70,7 @@ export function LeagueForm() {
   const [totalDays, setTotalDays] = useState("5");
   const [roundsPerDay, setRoundsPerDay] = useState("2");
   const [weekday, setWeekday] = useState("5");
-  const [scoringSystem, setScoringSystem] = useState("COMPETITIVE");
+  const [scoringSystem, setScoringSystem] = useState("POINTS");
 
 
 
@@ -146,7 +146,10 @@ export function LeagueForm() {
               <DisplaySelect
                 value={format}
                 options={FORMAT_OPTIONS}
-                onChange={setFormat}
+                onChange={(v) => {
+                  setFormat(v);
+                  if (isCommanderFormat(v)) setScoringSystem("POINTS");
+                }}
                 renderLabel={formatDisplayName}
               />
             </div>

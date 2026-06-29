@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { calculateTableResults, calculateBet, TableCalculationInput } from "@/lib/points/calculator";
-import { calculateMatchPoints } from "@/lib/points/competitive";
+import { ResultService, type ResultInput } from "@/lib/services/result";
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,7 +46,7 @@ export async function POST(request: NextRequest) {
     if (table.round.status === "COMPLETED") {
       return NextResponse.json(
         { error: "Cannot record results on a completed round" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -61,95 +60,43 @@ export async function POST(request: NextRequest) {
     if (prevRound && prevRound.status !== "COMPLETED") {
       return NextResponse.json(
         { error: "Previous round must be completed before recording results" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     const tablePlayers = await prisma.tablePlayer.findMany({
       where: { tableId },
-      include: { leaguePlayer: true },
     });
 
-    const scoringSystem = table.round.leagueDay.league.scoringSystem;
+    const validation = ResultService.validateResults(
+      results as ResultInput[],
+      tablePlayers.map((tp) => tp.leaguePlayerId),
+    );
 
-    if (scoringSystem === "COMPETITIVE") {
-      for (const resultEntry of results) {
-        const tp = tablePlayers.find(
-          (p) => p.leaguePlayerId === resultEntry.leaguePlayerId
-        );
-        if (!tp) continue;
-
-        const result = resultEntry.result || "LOSS";
-        const matchPoints = calculateMatchPoints(result as "WIN" | "DRAW" | "ABSENT" | "LOSS");
-        const gamesWon = resultEntry.gamesWon ?? 0;
-        const gamesDrawn = resultEntry.gamesDrawn ?? 0;
-        const gamesLost = resultEntry.gamesLost ?? 0;
-
-        await prisma.tablePlayer.update({
-          where: { id: tp.id },
-          data: {
-            result,
-            matchPoints,
-            gamesWon,
-            gamesDrawn,
-            gamesLost,
-          },
-        });
-      }
-
-      for (const tp of tablePlayers) {
-        const resultEntry = results.find(
-          (r: { leaguePlayerId: string }) => r.leaguePlayerId === tp.leaguePlayerId
-        );
-        if (!resultEntry && tp.result === "PENDING") {
-          await prisma.tablePlayer.update({
-            where: { id: tp.id },
-            data: {
-              result: "ABSENT",
-              matchPoints: 0,
-              gamesWon: 0,
-              gamesDrawn: 0,
-              gamesLost: 0,
-            },
-          });
-        }
-      }
-    } else {
-      const calcInputs: TableCalculationInput[] = tablePlayers.map((tp) => {
-        const resultEntry = results.find(
-          (r: { leaguePlayerId: string; result: string }) =>
-            r.leaguePlayerId === tp.leaguePlayerId
-        );
-        return {
-          leaguePlayerId: tp.leaguePlayerId,
-          points: tp.leaguePlayer.points,
-          result: (resultEntry?.result || "ABSENT") as "WIN" | "DRAW" | "ABSENT" | "PENDING",
-        };
-      });
-
-      const calcResults = calculateTableResults(calcInputs);
-
-      for (const calc of calcResults) {
-        const tablePlayer = tablePlayers.find(
-          (tp) => tp.leaguePlayerId === calc.leaguePlayerId
-        );
-
-        if (tablePlayer) {
-          await prisma.tablePlayer.update({
-            where: { id: tablePlayer.id },
-            data: {
-              result: ["WIN", "THREE_PLAYER_BONUS", "FIVE_PLAYER_PENALTY"].includes(calc.changeType)
-                ? "WIN"
-                : calc.changeType === "DRAW_SHARE"
-                  ? "DRAW"
-                  : "ABSENT",
-              pointsWagered: calc.bet,
-              pointsChange: calc.pointsChange,
-            },
-          });
-        }
-      }
+    if (!validation.valid) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
+
+    const isCompetitive = table.round.leagueDay.league.scoringSystem === "COMPETITIVE";
+
+    await prisma.$transaction(async (tx) => {
+      await ResultService.recordResults(tx, tableId, validation.normalizedResults, isCompetitive);
+
+      const pendingPlayers = tablePlayers.filter(
+        (tp) => tp.result === "PENDING" && !validation.normalizedResults.find((r) => r.leaguePlayerId === tp.leaguePlayerId),
+      );
+
+      for (const tp of pendingPlayers) {
+        const data: Record<string, unknown> = { result: "LOSS" };
+        if (isCompetitive) {
+          data.matchPoints = 0;
+          data.gamesWon = 0;
+          data.gamesDrawn = 0;
+          data.gamesLost = 0;
+        }
+        await tx.tablePlayer.update({ where: { id: tp.id }, data });
+      }
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

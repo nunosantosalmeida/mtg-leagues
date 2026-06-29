@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { createLeagueSchema } from "@/lib/validations/league";
+import { isCommanderFormat } from "@/lib/types";
 
 export async function GET() {
   try {
@@ -65,6 +66,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = createLeagueSchema.parse(body);
 
+    const scoringSystem = isCommanderFormat(validated.format) ? "POINTS" : validated.scoringSystem;
+
     const league = await prisma.league.create({
       data: {
         name: validated.name,
@@ -74,7 +77,7 @@ export async function POST(request: NextRequest) {
         totalDays: validated.totalDays,
         roundsPerDay: validated.roundsPerDay,
         weekday: validated.weekday,
-        scoringSystem: validated.scoringSystem,
+        scoringSystem,
         status: "REGISTRATION",
         createdBy: session.user.id,
       },

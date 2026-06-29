@@ -83,7 +83,7 @@ export async function PATCH(
             let wins = 0, losses = 0, draws = 0;
             for (const c of regularChanges) {
               if (c.type === "WIN") wins++;
-              else if (c.type === "ABSENT" || c.type === "NO_SHOW") losses++;
+              else if (c.type === "ABSENT" || c.type === "NO_SHOW" || c.type === "LOSS") losses++;
               else if (c.type === "DRAW") draws++;
             }
             const matchesPlayed = wins + losses + draws;

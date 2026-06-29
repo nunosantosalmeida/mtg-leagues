@@ -94,17 +94,17 @@ describe("calculateTableResults", () => {
     expect(winner.pointsChange).toBeGreaterThan(0);
   });
 
-  it("calculates absent player penalty", () => {
+  it("calculates loss player penalty", () => {
     const players = [
-      { leaguePlayerId: "a", points: 1500, result: "ABSENT" as const },
+      { leaguePlayerId: "a", points: 1500, result: "LOSS" as const },
       { leaguePlayerId: "b", points: 1500, result: "DRAW" as const },
     ];
 
     const results = calculateTableResults(players);
-    const absent = results.find((r) => r.leaguePlayerId === "a")!;
+    const loss = results.find((r) => r.leaguePlayerId === "a")!;
 
-    expect(absent.changeType).toBe("NO_SHOW");
-    expect(absent.pointsChange).toBe(-105);
+    expect(loss.changeType).toBe("LOSS");
+    expect(loss.pointsChange).toBe(-105);
   });
 
   it("3-player winner bonus uses correct formula", () => {
@@ -145,7 +145,7 @@ describe("calculateTableResults", () => {
   it("total points are conserved in 2-player win", () => {
     const players = [
       { leaguePlayerId: "a", points: 1500, result: "WIN" as const },
-      { leaguePlayerId: "b", points: 1500, result: "ABSENT" as const },
+      { leaguePlayerId: "b", points: 1500, result: "LOSS" as const },
     ];
 
     const results = calculateTableResults(players);
