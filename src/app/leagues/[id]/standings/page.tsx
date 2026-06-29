@@ -46,7 +46,7 @@ interface LeagueData {
   name: string;
   format: string;
   scoringSystem: string;
-  days: { rounds: unknown[] }[];
+  days: { type: string; rounds: unknown[] }[];
 }
 
 export default function StandingsPage() {
@@ -106,7 +106,7 @@ export default function StandingsPage() {
         </div>
       </div>
 
-      <LeagueNav leagueId={leagueId} active="standings" />
+      <LeagueNav leagueId={leagueId} active="standings" showBracket={leagueData?.days.some(d => d.type === "PLAYOFF")} />
 
       <Card>
         <CardContent className="p-0">

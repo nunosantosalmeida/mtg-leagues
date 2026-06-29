@@ -345,6 +345,7 @@ export default function LeagueDetailPage() {
       <LeagueNav
         leagueId={league.id}
         active="overview"
+        showBracket={league.days.some(d => d.type === "PLAYOFF")}
         rightSlot={
           isAdmin ? (
             <Button variant="destructive" size="sm" onClick={handleDeleteLeague}>
@@ -365,9 +366,7 @@ export default function LeagueDetailPage() {
               activeRound = { id: round.id, roundNumber: round.roundNumber, name: round.name, dayNumber: day.dayNumber, dayName: day.name };
             }
             for (const table of round.tables) {
-              for (const p of table.players) {
-                if (p.result && p.result !== "PENDING") totalMatches++;
-              }
+              if (table.players.some((p) => p.result && p.result !== "PENDING")) totalMatches++;
             }
           }
         }

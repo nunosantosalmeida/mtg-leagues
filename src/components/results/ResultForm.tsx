@@ -134,18 +134,18 @@ export function ResultForm({ tableId, tableNumber, players, onResultRecorded, pl
   }
 
   function handleDraw() {
-    const p1 = sorted[0];
-    const p2 = sorted[1];
-
     setWinnerId(null);
     setIsDraw(true);
     setSavedScore(null);
     setSaved(false);
 
-    const results = [
-      { leaguePlayerId: p1.leaguePlayerId, result: "DRAW", gamesWon: 0, gamesDrawn: 1, gamesLost: 0 },
-      { leaguePlayerId: p2.leaguePlayerId, result: "DRAW", gamesWon: 0, gamesDrawn: 1, gamesLost: 0 },
-    ];
+    const results = sorted.map((p) => ({
+      leaguePlayerId: p.leaguePlayerId,
+      result: "DRAW",
+      gamesWon: 0,
+      gamesDrawn: 1,
+      gamesLost: 0,
+    }));
     submitResult(results);
   }
 
@@ -155,11 +155,10 @@ export function ResultForm({ tableId, tableNumber, players, onResultRecorded, pl
     setSavedScore(null);
     setSaved(false);
 
-    const loserId = players.find((p) => p.leaguePlayerId !== playerId)!.leaguePlayerId;
-    const results = [
-      { leaguePlayerId: playerId, result: "WIN" },
-      { leaguePlayerId: loserId, result: "ABSENT" },
-    ];
+    const results = players.map((p) => ({
+      leaguePlayerId: p.leaguePlayerId,
+      result: p.leaguePlayerId === playerId ? "WIN" : "LOSS",
+    }));
     submitResult(results);
   }
 

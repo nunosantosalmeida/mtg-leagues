@@ -310,7 +310,7 @@ function computeStandings(
 
     for (const change of regularChanges) {
       if (change.type === "WIN") wins++;
-      else if (change.type === "ABSENT" || change.type === "NO_SHOW") losses++;
+      else if (change.type === "ABSENT" || change.type === "NO_SHOW" || change.type === "LOSS") losses++;
       else if (change.type === "DRAW") draws++;
     }
 

@@ -44,7 +44,7 @@ export function calculateNoShowPenalty(points: number): number {
 export interface TableCalculationInput {
   leaguePlayerId: string;
   points: number;
-  result: "WIN" | "DRAW" | "ABSENT" | "PENDING";
+  result: "WIN" | "DRAW" | "LOSS" | "PENDING";
 }
 
 export interface TableCalculationResult {
@@ -52,7 +52,7 @@ export interface TableCalculationResult {
   bet: number;
   pointsChange: number;
   pointsAfter: number;
-  changeType: "WIN" | "DRAW_SHARE" | "NO_SHOW" | "THREE_PLAYER_BONUS" | "FIVE_PLAYER_PENALTY" | "BET";
+  changeType: "WIN" | "DRAW_SHARE" | "LOSS" | "THREE_PLAYER_BONUS" | "FIVE_PLAYER_PENALTY" | "BET";
 }
 
 export function calculateTableResults(players: TableCalculationInput[]): TableCalculationResult[] {
@@ -63,13 +63,13 @@ export function calculateTableResults(players: TableCalculationInput[]): TableCa
   return players.map((player, index) => {
     const bet = bets[index];
 
-    if (player.result === "ABSENT") {
+    if (player.result === "LOSS") {
       return {
         leaguePlayerId: player.leaguePlayerId,
         bet,
         pointsChange: -bet,
         pointsAfter: Math.floor((player.points - bet) * 100) / 100,
-        changeType: "NO_SHOW",
+        changeType: "LOSS",
       };
     }
 

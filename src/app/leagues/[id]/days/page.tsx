@@ -121,7 +121,7 @@ export default function LeagueDaysPage() {
         </div>
       </div>
 
-      <LeagueNav leagueId={leagueId} active="schedule" />
+      <LeagueNav leagueId={leagueId} active="schedule" showBracket={league?.days.some(d => d.type === "PLAYOFF")} />
 
       {isAdmin && league.days.length === 0 && (league.status === "REGISTRATION" || league.status === "IN_PROGRESS") && (
         <div className="mb-4">

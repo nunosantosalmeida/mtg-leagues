@@ -3,6 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Trophy, Medal, Users } from "lucide-react";
+import { isCommanderFormat } from "@/lib/types";
 
 interface BracketPlayer {
   seed: number;
@@ -248,7 +249,7 @@ export function PlayoffBracket({ data }: { data: BracketData }) {
     );
   }
 
-  const is1v1 = !data.format.startsWith("COMMANDER");
+  const is1v1 = !isCommanderFormat(data.format);
 
   return (
     <div className="space-y-6">

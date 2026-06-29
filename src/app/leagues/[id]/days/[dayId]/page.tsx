@@ -53,7 +53,7 @@ interface Round {
   status: string;
   name: string | null;
   tables: Table[];
-  absences: { leaguePlayerId: string }[];
+  absences: { leaguePlayerId: string; penalty: number; leaguePlayer: { id: string; points: number; user: { name: string } } }[];
 }
 
 interface LeagueDay {
@@ -374,7 +374,7 @@ export default function LeagueDayPage() {
         )}
 
         <div className="mt-8">
-          <LeagueNav leagueId={leagueId} active="schedule" />
+          <LeagueNav leagueId={leagueId} active="schedule" showBracket={league?.days.some(d => d.type === "PLAYOFF")} />
         </div>
       </div>
     );
@@ -438,7 +438,7 @@ export default function LeagueDayPage() {
         </div>
       </div>
 
-      <LeagueNav leagueId={leagueId} active="schedule" />
+      <LeagueNav leagueId={leagueId} active="schedule" showBracket={league?.days.some(d => d.type === "PLAYOFF")} />
 
       {currentDay.rounds.length > 0 && (
         <div className="mb-6">
@@ -652,7 +652,12 @@ export default function LeagueDayPage() {
                     return (
                       <Card key={table.id}>
                         <CardHeader className="pb-2">
-                          <CardTitle className="text-base">Table {table.tableNumber}</CardTitle>
+                          <CardTitle className="text-base flex items-center gap-2">
+                            Table {table.tableNumber}
+                            {table.players.every((p) => p.result === "DRAW") && (
+                              <Badge variant="secondary">DRAW</Badge>
+                            )}
+                          </CardTitle>
                         </CardHeader>
                         <CardContent>
                           <div className="space-y-2">
@@ -670,9 +675,6 @@ export default function LeagueDayPage() {
                                     {player.result === "WIN" && (
                                       <Badge>WIN</Badge>
                                     )}
-                                    {player.result === "DRAW" && (
-                                      <Badge variant="secondary">DRAW</Badge>
-                                    )}
                                     {player.result === "ABSENT" && league.scoringSystem !== "COMPETITIVE" && (
                                       <Badge variant="destructive">ABSENT</Badge>
                                     )}
@@ -684,12 +686,16 @@ export default function LeagueDayPage() {
                                     {player.result !== "PENDING" && !isPlayoff && league.scoringSystem !== "COMPETITIVE" && (
                                       <span
                                         className={
-                                          player.pointsChange >= 0
+                                          Math.round(player.pointsChange) > 0
                                             ? "text-green-600"
-                                            : "text-red-600"
+                                            : Math.round(player.pointsChange) < 0
+                                              ? "text-red-600"
+                                              : ""
                                         }
                                       >
-                                        {player.pointsChange >= 0 ? "+" : ""}
+                                        {Math.round(player.pointsChange) !== 0 && (
+                                          <>{Math.round(player.pointsChange) > 0 ? "+" : ""}</>
+                                        )}
                                         {Math.round(player.pointsChange)}
                                       </span>
                                     )}
@@ -704,25 +710,22 @@ export default function LeagueDayPage() {
                 </div>
               )}
 
-              {round.status === "COMPLETED" && (() => {
-                const absentPlayers = round.tables
-                  .flatMap((t) => t.players)
-                  .filter((p) => p.result === "ABSENT")
+              {round.status === "COMPLETED" && round.absences.length > 0 && (() => {
+                const absentPlayers = round.absences
                   .sort((a, b) => a.leaguePlayer.user.name.localeCompare(b.leaguePlayer.user.name));
-                if (absentPlayers.length === 0) return null;
-                const totalPenalty = absentPlayers.reduce((sum, p) => sum + Math.abs(p.pointsChange), 0);
+                const totalPenalty = absentPlayers.reduce((sum, a) => sum + a.penalty, 0);
                 return (
                   <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
                     <p className="text-sm font-medium text-red-800 dark:text-red-300 mb-1">
                       Absences ({absentPlayers.length})
                     </p>
                     <div className="flex flex-wrap gap-x-4 gap-y-1">
-                      {absentPlayers.map((p) => (
-                        <span key={p.id} className="text-sm text-red-700 dark:text-red-400">
-                          {p.leaguePlayer.user.name}
+                      {absentPlayers.map((a) => (
+                        <span key={a.leaguePlayerId} className="text-sm text-red-700 dark:text-red-400">
+                          {a.leaguePlayer.user.name}
                           {!isPlayoff && league.scoringSystem !== "COMPETITIVE" && (
                             <span className="ml-1 font-mono">
-                              ({Math.round(p.pointsChange)})
+                              ({Math.round(a.penalty)})
                             </span>
                           )}
                         </span>

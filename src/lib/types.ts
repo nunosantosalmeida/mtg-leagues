@@ -49,7 +49,7 @@ export type DayStatus = "PLANNED" | "IN_PROGRESS" | "COMPLETED";
 
 export type RoundStatus = "PLANNED" | "IN_PROGRESS" | "COMPLETED";
 
-export type TableResult = "PENDING" | "WIN" | "DRAW" | "ABSENT" | "LOSS";
+export type TableResult = "PENDING" | "WIN" | "DRAW" | "LOSS";
 
 export type ChangeType =
   | "INITIAL"
@@ -57,7 +57,8 @@ export type ChangeType =
   | "BET"
   | "WIN"
   | "DRAW_SHARE"
-  | "NO_SHOW"
+  | "LOSS"
+  | "ABSENT"
   | "THREE_PLAYER_BONUS"
   | "FIVE_PLAYER_PENALTY";
 
