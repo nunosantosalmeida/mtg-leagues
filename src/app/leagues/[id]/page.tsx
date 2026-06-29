@@ -105,7 +105,10 @@ export default function LeagueDetailPage() {
 
   const fetchLeague = useCallback(() => {
     fetch(`/api/leagues/${leagueId}`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
       .then((data) => {
         setLeague(data);
         setLoading(false);
@@ -360,7 +363,7 @@ export default function LeagueDetailPage() {
         let completedDays = 0;
         let activeRound: { id: string; roundNumber: number; name: string | null; dayNumber: number; dayName: string | null } | null = null;
         for (const day of league.days) {
-          if (day.status === "COMPLETED") completedDays++;
+          if (day.status === "COMPLETED" && day.type !== "PLAYOFF") completedDays++;
           for (const round of day.rounds) {
             if (round.status === "IN_PROGRESS" && !activeRound) {
               activeRound = { id: round.id, roundNumber: round.roundNumber, name: round.name, dayNumber: day.dayNumber, dayName: day.name };
@@ -611,7 +614,7 @@ export default function LeagueDetailPage() {
                   .sort((a, b) => b.points - a.points)
                   .map((player, index) => {
                     const playing = playingInfo[player.user.id];
-                    const isTop = league.status === "COMPLETED" && index === 0;
+                    const isTop = leagueWinner?.id === player.user.id;
                     return (
                       <div key={player.id} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">

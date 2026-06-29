@@ -51,7 +51,10 @@ export default function Top4Page() {
 
   useEffect(() => {
     fetch(`/api/leagues/${leagueId}`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
       .then((data) => {
         setLeague(data);
         setLoading(false);

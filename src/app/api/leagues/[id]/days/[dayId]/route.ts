@@ -45,6 +45,7 @@ export async function PATCH(
     if (status === "COMPLETED") {
       const allDays = await prisma.leagueDay.findMany({
         where: { leagueId: id },
+        include: { rounds: { select: { id: true } } },
         orderBy: { dayNumber: "asc" },
       });
 
@@ -99,12 +100,17 @@ export async function PATCH(
           })
           .sort((a, b) => b.points - a.points || b.wins - a.wins || a.losses - b.losses || b.gameWinPercentage - a.gameWinPercentage);
 
+        const totalRegularRounds = regularDays.reduce((sum, d) => sum + d.rounds.length, 0);
+        const eligibleStandings = isCommanderFormat(league.format)
+          ? standings.filter((s) => totalRegularRounds === 0 || s.matchesPlayed / totalRegularRounds >= 0.6)
+          : standings;
+
         const topCut = isCommanderFormat(league.format)
-          ? getCommanderTopCut(standings.length)
+          ? getCommanderTopCut(eligibleStandings.length)
           : Math.min(8, standings.length);
 
-        if (standings.length >= topCut) {
-          const qualified = standings.slice(0, topCut);
+        if (eligibleStandings.length >= topCut) {
+          const qualified = eligibleStandings.slice(0, topCut);
           const seeds = getSeedsFromStandings(qualified);
           const bracket = generateBracket(seeds, topCut, league.format);
 

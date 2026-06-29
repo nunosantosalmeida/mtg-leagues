@@ -249,7 +249,10 @@ export default function BracketPage() {
 
   const fetchLeague = useCallback(() => {
     return fetch(`/api/leagues/${leagueId}`, { cache: "no-store" })
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
       .then((data) => {
         setLeague(data);
         setLoading(false);

@@ -55,7 +55,10 @@ export default function LeagueDaysPage() {
 
   const fetchLeague = useCallback(() => {
     fetch(`/api/leagues/${leagueId}`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
       .then((data) => {
         setLeague(data);
         setLoading(false);

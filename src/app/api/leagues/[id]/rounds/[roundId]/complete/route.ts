@@ -206,7 +206,7 @@ async function advanceCommanderSemifinals(
       const regularPoints = p.pointChanges
         .filter((pc) => pc.round?.leagueDay?.type === "REGULAR")
         .reduce((sum, pc) => sum + pc.amount, 0);
-      return { id: p.id, points: p.points - regularPoints };
+      return { id: p.id, points: regularPoints };
     })
     .sort((a, b) => b.points - a.points)
     .map((p, i) => ({ id: p.id, seed: i + 1 }));

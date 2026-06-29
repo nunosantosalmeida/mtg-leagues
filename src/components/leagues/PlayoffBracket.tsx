@@ -113,7 +113,7 @@ function PodCard({ pod, matches, allMatches }: { pod: PodAssignment; matches: Br
             <div key={player.seed} className="flex items-center gap-2 text-sm">
               <SeedBadge seed={player.seed} isWinner={false} />
               <span className="flex-1">{player.name}</span>
-              <span className="text-muted-foreground text-xs">{player.points} pts</span>
+              <span className="text-muted-foreground text-xs">{player.points.toFixed(2)} pts</span>
             </div>
           ))}
         </div>
@@ -218,7 +218,7 @@ function BracketCommander({ data }: { data: BracketData }) {
                   <div key={player.seed} className="flex items-center gap-2 text-sm">
                     <SeedBadge seed={player.seed} isWinner={false} />
                     <span className="flex-1">{player.name}</span>
-                    <span className="text-muted-foreground text-xs">{player.points} pts</span>
+                    <span className="text-muted-foreground text-xs">{player.points.toFixed(2)} pts</span>
                   </div>
                 ))}
               </div>

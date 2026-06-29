@@ -62,22 +62,37 @@ export async function POST(
 
     const activePlayers = players.filter((p) => !absentPlayerIds.includes(p.id));
 
+    let eligiblePlayers = activePlayers;
+    if (isCommanderFormat(league.format)) {
+      const regularDays = await prisma.leagueDay.findMany({
+        where: { leagueId: id, type: "REGULAR" },
+        include: { rounds: true },
+      });
+      const totalRegularRounds = regularDays.reduce((sum, d) => sum + d.rounds.length, 0);
+      eligiblePlayers = activePlayers.filter((p) => {
+        const regularChanges = p.pointChanges.filter(
+          (pc) => pc.round?.leagueDay?.type === "REGULAR"
+        );
+        return totalRegularRounds === 0 || regularChanges.length / totalRegularRounds >= 0.6;
+      });
+    }
+
     const topCut = isCommanderFormat(league.format)
-      ? getCommanderTopCut(activePlayers.length)
+      ? getCommanderTopCut(eligiblePlayers.length)
       : requestedTopCut;
 
     if (!topCut || topCut < 2) {
       return NextResponse.json({ error: "Not enough players for a playoff" }, { status: 400 });
     }
 
-    if (activePlayers.length < topCut) {
+    if (eligiblePlayers.length < topCut) {
       return NextResponse.json(
-        { error: `Only ${activePlayers.length} active players, need ${topCut} for the selected top cut` },
+        { error: `Only ${eligiblePlayers.length} active players, need ${topCut} for the selected top cut` },
         { status: 400 }
       );
     }
 
-    const standings = computeStandings(activePlayers, league.scoringSystem === "COMPETITIVE");
+    const standings = computeStandings(eligiblePlayers, league.scoringSystem === "COMPETITIVE");
 
     const qualified = standings.slice(0, topCut);
     const seeds = getSeedsFromStandings(

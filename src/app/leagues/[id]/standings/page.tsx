@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/breadcrumb";
 import { PointsChart } from "@/components/standings/PointsChart";
 import { isCommanderFormat } from "@/lib/types";
+import { getCommanderTopCut } from "@/lib/playoff/bracket";
+import { Trophy, Shield } from "lucide-react";
 
 interface StandingEntry {
   leaguePlayerId: string;
@@ -43,10 +45,13 @@ interface StandingEntry {
 }
 
 interface LeagueData {
+  id: string;
   name: string;
   format: string;
   scoringSystem: string;
-  days: { type: string; rounds: unknown[] }[];
+  status: string;
+  players: { user: { id: string; name: string }; points: number }[];
+  days: { type: string; rounds: { id: string; name: string | null; status: string; tables: { tableNumber: number; players: { result: string; leaguePlayer: { user: { id: string; name: string } } }[] }[] }[] }[];
 }
 
 export default function StandingsPage() {
@@ -59,8 +64,8 @@ export default function StandingsPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch(`/api/leagues/${leagueId}`).then((res) => res.json()),
-      fetch(`/api/leagues/${leagueId}/standings`).then((res) => res.json()),
+      fetch(`/api/leagues/${leagueId}`).then((res) => res.ok ? res.json() : null),
+      fetch(`/api/leagues/${leagueId}/standings`).then((res) => res.ok ? res.json() : []),
     ])
       .then(([ld, standingsData]) => {
         setLeagueData(ld);
@@ -75,9 +80,55 @@ export default function StandingsPage() {
   }
 
   const totalRounds = leagueData?.days.reduce((sum, d) => sum + d.rounds.length, 0) ?? 0;
+  const totalRegularRounds = leagueData?.days.filter(d => d.type === "REGULAR").reduce((sum, d) => sum + d.rounds.length, 0) ?? 0;
   const isCompetitive = leagueData?.scoringSystem === "COMPETITIVE";
   const is1v1 = leagueData?.format && !isCommanderFormat(leagueData.format);
   const isTraditional1v1 = is1v1 && !isCompetitive;
+
+  const isCommander = leagueData?.format && isCommanderFormat(leagueData.format);
+  const topCut = isCommander ? getCommanderTopCut(standings.length) : 0;
+  const isBracketReady = leagueData && !leagueData.days.some(d => d.type === "PLAYOFF");
+
+  const qualifyingIds = new Set<string>();
+  if (isCommander && isBracketReady && topCut > 0) {
+    const eligiblePlayers = standings.filter((s) =>
+      totalRegularRounds === 0 || s.roundsPlayed / totalRegularRounds >= 0.6
+    );
+    for (let i = 0; i < Math.min(topCut, eligiblePlayers.length); i++) {
+      qualifyingIds.add(eligiblePlayers[i].leaguePlayerId);
+    }
+  }
+
+  let leagueWinner: { id: string; name: string } | null = null;
+  if (leagueData) {
+    const playoffDay = leagueData.days.find((d) => d.type === "PLAYOFF");
+    if (playoffDay) {
+      const finalsRound = playoffDay.rounds.find((r) => r.name === "Finals" || r.name === "Final");
+      if (finalsRound && finalsRound.status === "COMPLETED") {
+        const finalsTable = finalsRound.tables[0];
+        if (finalsTable) {
+          const hasWinner = finalsTable.players.some((p) => p.result === "WIN");
+          if (hasWinner) {
+            const winner = finalsTable.players.find((p) => p.result === "WIN");
+            if (winner) {
+              leagueWinner = { id: winner.leaguePlayer.user.id, name: winner.leaguePlayer.user.name };
+            }
+          } else {
+            const topPlayer = [...leagueData.players].sort((a, b) => b.points - a.points)[0];
+            if (topPlayer) {
+              leagueWinner = { id: topPlayer.user.id, name: topPlayer.user.name };
+            }
+          }
+        }
+      }
+    }
+    if (!leagueWinner && leagueData.status === "COMPLETED") {
+      const topPlayer = [...leagueData.players].sort((a, b) => b.points - a.points)[0];
+      if (topPlayer) {
+        leagueWinner = { id: topPlayer.user.id, name: topPlayer.user.name };
+      }
+    }
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -153,9 +204,12 @@ export default function StandingsPage() {
                     return (
                     <TableRow
                       key={entry.leaguePlayerId}
-                      className={`hover:bg-muted/50 ${index % 2 === 1 ? "bg-muted/20" : ""}`}
+                      className={`hover:bg-muted/50 ${index % 2 === 1 ? "bg-muted/20" : ""} ${qualifyingIds.has(entry.leaguePlayerId) ? "border-l-2 border-l-green-500" : ""}`}
                     >
                       <TableCell className="font-medium">
+                        {qualifyingIds.has(entry.leaguePlayerId) && (
+                          <Shield className="h-3.5 w-3.5 text-green-500 mr-1 inline" />
+                        )}
                         {index === 0 && <Badge className="mr-1">1st</Badge>}
                         {index === 1 && <Badge variant="secondary" className="mr-1">2nd</Badge>}
                         {index === 2 && <Badge variant="outline" className="mr-1">3rd</Badge>}
@@ -163,12 +217,17 @@ export default function StandingsPage() {
                       </TableCell>
                       <TableCell>
                         <div>
-                          <div className="font-medium">{entry.userName}</div>
+                          <div className="font-medium flex items-center gap-1">
+                            {leagueWinner?.id === entry.userId && (
+                              <Trophy className="h-4 w-4 text-yellow-500" />
+                            )}
+                            {entry.userName}
+                          </div>
                           <div className="text-xs text-muted-foreground hidden sm:block">{entry.userEmail}</div>
                         </div>
                       </TableCell>
                       <TableCell className="text-right font-mono text-lg">
-                        {leagueData?.scoringSystem === "COMPETITIVE" ? entry.matchPoints : entry.points}
+                        {leagueData?.scoringSystem === "COMPETITIVE" ? entry.matchPoints.toFixed(2) : entry.points.toFixed(2)}
                       </TableCell>
                       <TableCell className="text-center hidden sm:table-cell">{entry.roundsPlayed}</TableCell>
                       <TableCell className="text-center">
@@ -218,6 +277,19 @@ export default function StandingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {isCommander && isBracketReady && topCut > 0 && (
+        <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1">
+            <span className="inline-block w-3 h-3 border-l-2 border-l-green-500" />
+            <span>Bracket qualifying position (Top {topCut})</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Shield className="h-3 w-3 text-green-500" />
+            <span>≥60% attendance</span>
+          </div>
+        </div>
+      )}
 
       <div className="mt-8">
         <PointsChart
