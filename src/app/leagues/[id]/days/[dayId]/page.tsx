@@ -6,9 +6,22 @@ import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { ResultForm } from "@/components/results/ResultForm";
 import { SeatDisplay } from "@/components/rounds/SeatDisplay";
 import { CountdownTimer } from "@/components/rounds/CountdownTimer";
+import { LeagueNav } from "@/components/leagues/LeagueNav";
+import { isCommanderFormat } from "@/lib/types";
+import { Progress } from "@/components/ui/progress";
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import Link from "next/link";
 
 interface TablePlayer {
@@ -17,6 +30,10 @@ interface TablePlayer {
   result: string;
   pointsWagered: number;
   pointsChange: number;
+  matchPoints: number;
+  gamesWon: number;
+  gamesDrawn: number;
+  gamesLost: number;
   leaguePlayer: {
     id: string;
     points: number;
@@ -53,6 +70,8 @@ interface League {
   id: string;
   name: string;
   format: string;
+  scoringSystem: string;
+  bestOf: number;
   status: string;
   createdBy: string;
   days: LeagueDay[];
@@ -71,9 +90,14 @@ export default function LeagueDayPage() {
   const [closingDay, setClosingDay] = useState(false);
   const [absentByRound, setAbsentByRound] = useState<Record<string, Set<string>>>({});
   const [savingAbsences, setSavingAbsences] = useState<string | null>(null);
+  const [openAbsences, setOpenAbsences] = useState<Record<string, boolean>>({});
+  const [openRounds, setOpenRounds] = useState<Record<string, boolean>>({});
 
   const leagueId = params.id as string;
   const dayId = params.dayId as string;
+
+  const currentDay = league?.days.find((d) => d.id === dayId);
+  const isPlayoff = currentDay?.type === "PLAYOFF";
 
   const fetchLeague = useCallback(() => {
     return fetch(`/api/leagues/${leagueId}`, { cache: "no-store" })
@@ -88,6 +112,22 @@ export default function LeagueDayPage() {
   useEffect(() => {
     fetchLeague();
   }, [fetchLeague]);
+
+  useEffect(() => {
+    if (!currentDay) return;
+    setOpenRounds((prev) => {
+      const next = { ...prev };
+      let hasChanges = false;
+      for (let i = 0; i < currentDay.rounds.length; i++) {
+        const rid = currentDay.rounds[i].id;
+        if (!(rid in next)) {
+          next[rid] = i === 0;
+          hasChanges = true;
+        }
+      }
+      return hasChanges ? next : prev;
+    });
+  }, [currentDay]);
 
   async function handleCreateDays() {
     try {
@@ -136,6 +176,16 @@ export default function LeagueDayPage() {
       );
 
       if (response.ok) {
+        if (currentDay) {
+          const closedIdx = currentDay.rounds.findIndex((r) => r.id === roundId);
+          setOpenRounds((prev) => {
+            const next = { ...prev, [roundId]: false };
+            if (closedIdx >= 0 && closedIdx < currentDay.rounds.length - 1) {
+              next[currentDay.rounds[closedIdx + 1].id] = true;
+            }
+            return next;
+          });
+        }
         await fetchLeague();
       } else {
         const data = await response.json();
@@ -157,6 +207,7 @@ export default function LeagueDayPage() {
       );
 
       if (response.ok) {
+        setOpenRounds((prev) => ({ ...prev, [roundId]: true }));
         await fetchLeague();
       } else {
         const data = await response.json();
@@ -233,9 +284,13 @@ export default function LeagueDayPage() {
       );
 
       if (response.ok) {
-        await fetch(`/api/leagues/${leagueId}/rounds/${roundId}/tables/assign`, {
-          method: "POST",
-        });
+        const round = currentDay?.rounds.find((r) => r.id === roundId);
+        const canReassign = round && (round.status === "PLANNED" || (round.status === "IN_PROGRESS" && (round.tables.length === 0 || round.tables.every((t) => t.players.every((p) => p.result === "PENDING")))));
+        if (canReassign) {
+          await fetch(`/api/leagues/${leagueId}/rounds/${roundId}/tables/assign`, {
+            method: "POST",
+          });
+        }
         await fetchLeague();
       } else {
         const data = await response.json();
@@ -275,8 +330,6 @@ export default function LeagueDayPage() {
   }
 
   const isAdmin = session?.user?.id === league.createdBy || (session?.user as any)?.role === "ADMIN";
-  const currentDay = league.days.find((d) => d.id === dayId);
-  const isPlayoff = currentDay?.type === "PLAYOFF";
 
   if (!currentDay) {
     return (
@@ -321,9 +374,7 @@ export default function LeagueDayPage() {
         )}
 
         <div className="mt-8">
-          <Link href={`/leagues/${leagueId}`} className="inline-flex items-center justify-center rounded-lg border-border bg-background hover:bg-muted hover:text-foreground text-sm font-medium whitespace-nowrap transition-all h-8 gap-1.5 px-2.5">
-            Back to League
-          </Link>
+          <LeagueNav leagueId={leagueId} active="schedule" />
         </div>
       </div>
     );
@@ -331,6 +382,26 @@ export default function LeagueDayPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      <Breadcrumb className="mb-4">
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/leagues">Leagues</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbLink href={`/leagues/${leagueId}`}>{league.name}</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbLink href={`/leagues/${leagueId}/days`}>Schedule</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>{currentDay.name || `Day ${currentDay.dayNumber}`}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold">
@@ -364,14 +435,31 @@ export default function LeagueDayPage() {
           {currentDay.status === "COMPLETED" && (
             <Badge variant="default">Day Closed</Badge>
           )}
-          <Link href={`/leagues/${leagueId}`} className="inline-flex items-center justify-center rounded-lg border-border bg-background hover:bg-muted hover:text-foreground text-sm font-medium whitespace-nowrap transition-all h-8 gap-1.5 px-2.5">
-            Back to League
-          </Link>
         </div>
       </div>
 
+      <LeagueNav leagueId={leagueId} active="schedule" />
+
+      {currentDay.rounds.length > 0 && (
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm text-muted-foreground">Round Progress</p>
+            <p className="text-sm text-muted-foreground">
+              {currentDay.rounds.filter((r) => r.status === "COMPLETED").length} / {currentDay.rounds.length}
+            </p>
+          </div>
+          <Progress
+            value={
+              currentDay.rounds.length > 0
+                ? (currentDay.rounds.filter((r) => r.status === "COMPLETED").length / currentDay.rounds.length) * 100
+                : 0
+            }
+          />
+        </div>
+      )}
+
       <div className="space-y-6">
-        {currentDay.rounds.map((round) => {
+        {currentDay.rounds.map((round, roundIdx) => {
           const allResultsRecorded = round.tables.length > 0 &&
             round.tables.every((table) =>
               table.players.every((p) => p.result !== "PENDING")
@@ -380,13 +468,26 @@ export default function LeagueDayPage() {
             round.tables.every((table) =>
               table.players.every((p) => p.result === "PENDING")
             );
-          const canAssign = round.status === "PLANNED" || (round.status === "IN_PROGRESS" && noResultsRecorded);
+          const prevRoundCompleted = roundIdx === 0 || currentDay.rounds[roundIdx - 1].status === "COMPLETED";
+          const canAssign = prevRoundCompleted && (round.status === "PLANNED" || (round.status === "IN_PROGRESS" && (round.tables.length === 0 || noResultsRecorded)));
 
           return (
-          <Card key={round.id}>
+          <Collapsible
+            key={round.id}
+            open={openRounds[round.id] ?? false}
+            onOpenChange={(open) => setOpenRounds((prev) => ({ ...prev, [round.id]: open }))}
+          >
+          <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>{round.name || `Round ${round.roundNumber}`}</CardTitle>
+                <CollapsibleTrigger
+                  render={
+                    <button className="flex items-center gap-2 hover:opacity-80 transition-opacity -ml-1 rounded px-1 py-0.5" />
+                  }
+                >
+                  {openRounds[round.id] ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+                  <CardTitle>{round.name || `Round ${round.roundNumber}`}</CardTitle>
+                </CollapsibleTrigger>
                 <div className="flex items-center gap-2">
                   <Badge className={
                     round.status === "COMPLETED" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" :
@@ -398,10 +499,10 @@ export default function LeagueDayPage() {
                   {round.status === "IN_PROGRESS" && round.tables.length > 0 && (
                     <>
                       <SeatDisplay tables={round.tables} roundName={round.name || `Round ${round.roundNumber}`} />
-                      <CountdownTimer defaultMinutes={league.format === "COMMANDER" ? 75 : 50} />
+                      <CountdownTimer defaultMinutes={isCommanderFormat(league.format) ? 75 : 50} roundId={round.id} />
                     </>
                   )}
-                  {isAdmin && canAssign && round.tables.length === 0 && !(isPlayoff && league.format !== "COMMANDER" && round.name !== "Quarterfinals") && (
+                  {isAdmin && canAssign && round.tables.length === 0 && !(isPlayoff && !isCommanderFormat(league.format) && round.name !== "Quarterfinals") && (
                     <Button
                       size="sm"
                       onClick={() => handleAssignTables(round.id)}
@@ -410,7 +511,7 @@ export default function LeagueDayPage() {
                       {assigning === round.id ? "Assigning..." : "Assign Tables"}
                     </Button>
                   )}
-                  {isAdmin && canAssign && round.tables.length > 0 && !(isPlayoff && league.format !== "COMMANDER" && round.name !== "Quarterfinals") && (
+                  {isAdmin && canAssign && round.tables.length > 0 && !(isPlayoff && !isCommanderFormat(league.format) && round.name !== "Quarterfinals") && !(league.scoringSystem === "COMPETITIVE" && !isCommanderFormat(league.format)) && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -440,51 +541,68 @@ export default function LeagueDayPage() {
                     </Button>
                   )}
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {isAdmin && canAssign && !(isPlayoff && league.format !== "COMMANDER" && round.name !== "Quarterfinals") && (
-                <div className="space-y-4 mb-6">
-                  <p className="text-sm text-muted-foreground">
-                    {round.tables.length === 0
-                      ? "Mark absent players before assigning tables:"
-                      : "Redefine absences and re-assign tables:"}
-                  </p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-4 gap-y-1">
-                    {[...league.players]
-                      .sort((a, b) => b.points - a.points)
-                      .map((player) => {
-                        const isAbsent = absentByRound[round.id]
-                          ? absentByRound[round.id].has(player.id)
-                          : round.absences.some((a) => a.leaguePlayerId === player.id);
-                        return (
-                          <label
-                            key={player.id}
-                            className="flex items-center gap-1.5 py-0.5 cursor-pointer rounded hover:bg-muted"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isAbsent}
-                              onChange={() => toggleAbsent(round.id, player.id)}
-                              className="h-3 w-3"
-                            />
-                            <span className="text-sm truncate">{player.user.name}</span>
-                            {isAbsent && (
-                              <Badge variant="destructive" className="text-[10px] px-1 py-0">A</Badge>
-                            )}
-                          </label>
-                        );
-                      })}
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={() => handleSaveAbsences(round.id)}
-                    disabled={savingAbsences === round.id}
-                  >
-                    {savingAbsences === round.id ? "Saving..." : round.tables.length > 0 ? "Save & Re-assign" : "Save Absences"}
-                  </Button>
                 </div>
-              )}
+            </CardHeader>
+            <CollapsibleContent>
+            <CardContent>
+              {isAdmin && (round.status === "PLANNED" || round.status === "IN_PROGRESS") && !(isPlayoff && !isCommanderFormat(league.format) && round.name !== "Quarterfinals") && (() => {
+                const absentCount = round.absences.length;
+                const isOpen = openAbsences[round.id] ?? round.tables.length === 0;
+                return (
+                  <Collapsible open={isOpen} onOpenChange={(open) => setOpenAbsences((prev) => ({ ...prev, [round.id]: open }))} className="mb-6">
+                    <CollapsibleTrigger
+                      render={
+                        <button className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full text-left py-1" />
+                      }
+                    >
+                      {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      Absent players?{absentCount > 0 ? ` (${absentCount})` : ""}
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-4 pt-3">
+                      <p className="text-sm text-muted-foreground">
+                        {round.tables.length === 0
+                          ? "Mark absent players before assigning tables:"
+                          : canAssign && !(league.scoringSystem === "COMPETITIVE" && !isCommanderFormat(league.format))
+                            ? "Redefine absences and re-assign tables:"
+                            : "Update absences:"}
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-4 gap-y-1">
+                        {[...league.players]
+                          .sort((a, b) => a.user.name.localeCompare(b.user.name))
+                          .map((player) => {
+                            const isAbsent = absentByRound[round.id]
+                              ? absentByRound[round.id].has(player.id)
+                              : round.absences.some((a) => a.leaguePlayerId === player.id);
+                            return (
+                              <label
+                                key={player.id}
+                                className="flex items-center gap-1.5 py-0.5 cursor-pointer rounded hover:bg-muted"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isAbsent}
+                                  onChange={() => toggleAbsent(round.id, player.id)}
+                                  className="h-3 w-3"
+                                />
+                                <span className="text-sm truncate">{player.user.name}</span>
+                                {isAbsent && (
+                                  <Badge variant="destructive" className="text-[10px] px-1 py-0">A</Badge>
+                                )}
+                              </label>
+                            );
+                          })}
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => handleSaveAbsences(round.id)}
+                        disabled={savingAbsences === round.id}
+                      >
+                        {savingAbsences === round.id ? "Saving..." : canAssign && !(league.scoringSystem === "COMPETITIVE" && !isCommanderFormat(league.format)) ? "Save & Assign" : "Save Absences"}
+                      </Button>
+                    </CollapsibleContent>
+                  </Collapsible>
+                );
+              })()}
               {round.tables.length === 0 ? (
                 <p className="text-muted-foreground">No tables assigned yet</p>
               ) : (
@@ -508,8 +626,8 @@ export default function LeagueDayPage() {
                       );
                     }
 
-                    if (isAdmin && round.status === "IN_PROGRESS") {
-                      const allowDraws = !(isPlayoff && league.format !== "COMMANDER");
+                    if (isAdmin && round.status === "IN_PROGRESS" && prevRoundCompleted) {
+                      const allowDraws = !(isPlayoff && !isCommanderFormat(league.format));
                       return (
                         <ResultForm
                           key={table.id}
@@ -525,6 +643,8 @@ export default function LeagueDayPage() {
                           onResultRecorded={fetchLeague}
                           playoff={isPlayoff}
                           allowDraws={allowDraws}
+                          competitive={league.scoringSystem === "COMPETITIVE"}
+                          bestOf={league.bestOf}
                         />
                       );
                     }
@@ -544,7 +664,7 @@ export default function LeagueDayPage() {
                                   className="flex items-center justify-between text-sm"
                                 >
                                   <div className="flex items-center gap-2">
-                                    <span>{player.seatPosition}° {player.leaguePlayer.user.name}</span>
+                                    <span>{table.players.length === 2 ? player.leaguePlayer.user.name : `${player.seatPosition}° ${player.leaguePlayer.user.name}`}</span>
                                   </div>
                                   <div className="flex items-center gap-2">
                                     {player.result === "WIN" && (
@@ -553,7 +673,15 @@ export default function LeagueDayPage() {
                                     {player.result === "DRAW" && (
                                       <Badge variant="secondary">DRAW</Badge>
                                     )}
-                                    {player.result !== "PENDING" && !isPlayoff && (
+                                    {player.result === "ABSENT" && league.scoringSystem !== "COMPETITIVE" && (
+                                      <Badge variant="destructive">ABSENT</Badge>
+                                    )}
+                                    {league.scoringSystem === "COMPETITIVE" && player.result !== "PENDING" && player.result !== "ABSENT" && (
+                                      <span className="font-mono text-xs text-muted-foreground">
+                                        {player.gamesWon}-{player.gamesLost}{player.gamesDrawn > 0 ? `-${player.gamesDrawn}` : ""}
+                                      </span>
+                                    )}
+                                    {player.result !== "PENDING" && !isPlayoff && league.scoringSystem !== "COMPETITIVE" && (
                                       <span
                                         className={
                                           player.pointsChange >= 0
@@ -575,8 +703,43 @@ export default function LeagueDayPage() {
                   })}
                 </div>
               )}
+
+              {round.status === "COMPLETED" && (() => {
+                const absentPlayers = round.tables
+                  .flatMap((t) => t.players)
+                  .filter((p) => p.result === "ABSENT")
+                  .sort((a, b) => a.leaguePlayer.user.name.localeCompare(b.leaguePlayer.user.name));
+                if (absentPlayers.length === 0) return null;
+                const totalPenalty = absentPlayers.reduce((sum, p) => sum + Math.abs(p.pointsChange), 0);
+                return (
+                  <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
+                    <p className="text-sm font-medium text-red-800 dark:text-red-300 mb-1">
+                      Absences ({absentPlayers.length})
+                    </p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1">
+                      {absentPlayers.map((p) => (
+                        <span key={p.id} className="text-sm text-red-700 dark:text-red-400">
+                          {p.leaguePlayer.user.name}
+                          {!isPlayoff && league.scoringSystem !== "COMPETITIVE" && (
+                            <span className="ml-1 font-mono">
+                              ({Math.round(p.pointsChange)})
+                            </span>
+                          )}
+                        </span>
+                      ))}
+                    </div>
+                    {!isPlayoff && league.scoringSystem !== "COMPETITIVE" && (
+                      <p className="text-xs text-red-600 dark:text-red-500 mt-1">
+                        Total penalty: {Math.round(totalPenalty)} pts
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
             </CardContent>
+            </CollapsibleContent>
           </Card>
+          </Collapsible>
           );
         })}
       </div>

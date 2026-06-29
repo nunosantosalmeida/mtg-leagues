@@ -22,15 +22,18 @@ model User {
 }
 
 model League {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  format      String   @default("COMMANDER")
-  bestOf      Int      @default(1)
-  totalDays   Int      @default(5)
-  status      String   @default("REGISTRATION")
-  createdBy   String
-  createdAt   DateTime @default(now())
+  id             String   @id @default(cuid())
+  name           String
+  description    String?
+  format         String   @default("COMMANDER")
+  bestOf         Int      @default(1)
+  totalDays      Int      @default(5)
+  roundsPerDay   Int      @default(2)
+  weekday        Int      @default(5)
+  scoringSystem  String   @default("POINTS")
+  status         String   @default("REGISTRATION")
+  createdBy      String
+  createdAt      DateTime @default(now())
 
   creator    User           @relation(fields: [createdBy], references: [id])
   players    LeaguePlayer[]
@@ -113,6 +116,10 @@ model TablePlayer {
   result          String @default("PENDING")
   pointsWagered   Float
   pointsChange    Float  @default(0)
+  matchPoints     Int    @default(0)
+  gamesWon        Int    @default(0)
+  gamesDrawn      Int    @default(0)
+  gamesLost       Int    @default(0)
 
   table        Table        @relation(fields: [tableId], references: [id])
   leaguePlayer LeaguePlayer @relation(fields: [leaguePlayerId], references: [id])

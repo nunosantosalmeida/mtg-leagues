@@ -2,13 +2,54 @@ export type Role = "ADMIN" | "PLAYER";
 
 export type LeagueStatus = "REGISTRATION" | "IN_PROGRESS" | "COMPLETED" | "TOP4";
 
-export type Format = "COMMANDER" | "STANDARD" | "MODERN" | "PIONEER" | "PAUPER";
+export type Format = "COMMANDER" | "COMMANDER_PRECONS" | "CEDH" | "STANDARD" | "MODERN" | "PIONEER" | "PAUPER";
 
-export type DayStatus = "PLANNED" | "COMPLETED";
+export type ScoringSystem = "POINTS" | "COMPETITIVE";
 
-export type RoundStatus = "PLANNED" | "COMPLETED";
+export function isCommanderFormat(format: string): boolean {
+  return format === "COMMANDER" || format === "COMMANDER_PRECONS" || format === "CEDH";
+}
 
-export type TableResult = "PENDING" | "WIN" | "DRAW" | "ABSENT";
+export function formatDisplayName(format: string): string {
+  switch (format) {
+    case "COMMANDER": return "Commander";
+    case "COMMANDER_PRECONS": return "Commander - Precons";
+    case "CEDH": return "Commander - cEDH";
+    case "STANDARD": return "Standard";
+    case "MODERN": return "Modern";
+    case "PIONEER": return "Pioneer";
+    case "PAUPER": return "Pauper";
+    default: return format;
+  }
+}
+
+export function scoringDisplayName(scoring: string): string {
+  switch (scoring) {
+    case "POINTS": return "Bet League";
+    case "COMPETITIVE": return "Traditional";
+    default: return scoring;
+  }
+}
+
+export const WEEKDAY_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
+
+export function weekdayName(weekday: number): string {
+  return WEEKDAY_NAMES[weekday] ?? "Unknown";
+}
+
+export type DayStatus = "PLANNED" | "IN_PROGRESS" | "COMPLETED";
+
+export type RoundStatus = "PLANNED" | "IN_PROGRESS" | "COMPLETED";
+
+export type TableResult = "PENDING" | "WIN" | "DRAW" | "ABSENT" | "LOSS";
 
 export type ChangeType =
   | "INITIAL"
@@ -38,6 +79,9 @@ export interface League {
   format: Format;
   bestOf: number;
   totalDays: number;
+  roundsPerDay: number;
+  weekday: number;
+  scoringSystem: ScoringSystem;
   status: LeagueStatus;
   createdBy: string;
   createdAt: Date;
@@ -99,10 +143,15 @@ export interface StandingEntry {
   userName: string;
   userEmail: string;
   points: number;
+  matchPoints: number;
   roundsPlayed: number;
   wins: number;
   draws: number;
   losses: number;
+  penalties: number;
+  omwPercentage?: number;
+  gwPercentage?: number;
+  ogwPercentage?: number;
 }
 
 export interface RoundResult {

@@ -11,9 +11,53 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { isCommanderFormat, formatDisplayName, WEEKDAY_NAMES } from "@/lib/types";
+
+const FORMAT_OPTIONS = [
+  "COMMANDER",
+  "COMMANDER_PRECONS",
+  "CEDH",
+  "STANDARD",
+  "MODERN",
+  "PIONEER",
+  "PAUPER",
+] as const;
+
+const SCORING_OPTIONS = [
+  { value: "COMPETITIVE", label: "Traditional" },
+  { value: "POINTS", label: "Bet League" },
+] as const;
+
+const BEST_OF_OPTIONS = ["1", "3", "5"] as const;
+
+function DisplaySelect({
+  value,
+  options,
+  onChange,
+  renderLabel,
+}: {
+  value: string;
+  options: readonly string[];
+  onChange: (v: string) => void;
+  renderLabel: (v: string) => string;
+}) {
+  return (
+    <Select value={value} onValueChange={(v) => onChange(v ?? options[0])}>
+      <SelectTrigger>
+        <span>{renderLabel(value)}</span>
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((opt) => (
+          <SelectItem key={opt} value={opt}>
+            {renderLabel(opt)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 export function LeagueForm() {
   const router = useRouter();
@@ -24,6 +68,11 @@ export function LeagueForm() {
   const [format, setFormat] = useState("COMMANDER");
   const [bestOf, setBestOf] = useState("1");
   const [totalDays, setTotalDays] = useState("5");
+  const [roundsPerDay, setRoundsPerDay] = useState("2");
+  const [weekday, setWeekday] = useState("5");
+  const [scoringSystem, setScoringSystem] = useState("COMPETITIVE");
+
+
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -40,6 +89,9 @@ export function LeagueForm() {
           format,
           bestOf: parseInt(bestOf),
           totalDays: parseInt(totalDays),
+          roundsPerDay: parseInt(roundsPerDay),
+          weekday: parseInt(weekday),
+          scoringSystem,
         }),
       });
 
@@ -91,41 +143,31 @@ export function LeagueForm() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Format</Label>
-              <Select value={format} onValueChange={(v) => setFormat(v ?? "COMMANDER")}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="COMMANDER">Commander</SelectItem>
-                  <SelectItem value="STANDARD">Standard</SelectItem>
-                  <SelectItem value="MODERN">Modern</SelectItem>
-                  <SelectItem value="PIONEER">Pioneer</SelectItem>
-                  <SelectItem value="PAUPER">Pauper</SelectItem>
-                </SelectContent>
-              </Select>
+              <DisplaySelect
+                value={format}
+                options={FORMAT_OPTIONS}
+                onChange={setFormat}
+                renderLabel={formatDisplayName}
+              />
             </div>
             <div className="space-y-2">
               <Label>Best Of</Label>
-              <Select value={bestOf} onValueChange={(v) => setBestOf(v ?? "1")}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1</SelectItem>
-                  <SelectItem value="3">3</SelectItem>
-                  <SelectItem value="5">5</SelectItem>
-                </SelectContent>
-              </Select>
+              <DisplaySelect
+                value={bestOf}
+                options={BEST_OF_OPTIONS}
+                onChange={setBestOf}
+                renderLabel={(v) => v}
+              />
             </div>
           </div>
           <div className="space-y-2">
             <Label>League Days</Label>
             <Select value={totalDays} onValueChange={(v) => setTotalDays(v ?? "5")}>
               <SelectTrigger>
-                <SelectValue />
+                <span>{totalDays} days</span>
               </SelectTrigger>
               <SelectContent>
-                {[2, 3, 4, 5, 6, 7, 8].map((n) => (
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
                   <SelectItem key={n} value={n.toString()}>
                     {n} days
                   </SelectItem>
@@ -133,6 +175,58 @@ export function LeagueForm() {
               </SelectContent>
             </Select>
           </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Rounds Per Day</Label>
+              <Select value={roundsPerDay} onValueChange={(v) => setRoundsPerDay(v ?? "2")}>
+                <SelectTrigger>
+                  <span>{roundsPerDay} {parseInt(roundsPerDay) === 1 ? "round" : "rounds"}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                    <SelectItem key={n} value={n.toString()}>
+                      {n} {n === 1 ? "round" : "rounds"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Day of Week</Label>
+              <Select value={weekday} onValueChange={(v) => setWeekday(v ?? "5")}>
+                <SelectTrigger>
+                  <span>{WEEKDAY_NAMES[parseInt(weekday)]}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  {WEEKDAY_NAMES.map((day, i) => (
+                    <SelectItem key={i} value={i.toString()}>
+                      {day}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {!isCommanderFormat(format) && (
+            <div className="space-y-2">
+              <Label>Scoring System</Label>
+              <Select value={scoringSystem} onValueChange={(v) => setScoringSystem(v ?? "POINTS")}>
+                <SelectTrigger>
+                  <span>{SCORING_OPTIONS.find((o) => o.value === scoringSystem)?.label ?? scoringSystem}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  {SCORING_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Competitive uses match points (3/1/0) with OMW%, GW%, OGW% tiebreakers
+              </p>
+            </div>
+          )}
         </CardContent>
         <CardFooter className="flex gap-2">
           <Button type="button" variant="outline" onClick={() => router.back()}>

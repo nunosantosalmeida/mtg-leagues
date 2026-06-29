@@ -15,7 +15,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { JoinLeagueButton } from "@/components/leagues/JoinLeagueButton";
+import { LeagueNav } from "@/components/leagues/LeagueNav";
+import { formatDisplayName, isCommanderFormat } from "@/lib/types";
+import { Trophy, Users, Swords, Clock } from "lucide-react";
+import { CountdownTimer } from "@/components/rounds/CountdownTimer";
+import { AnimatedCounter } from "@/components/ui/animated-counter";
 import Link from "next/link";
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 
 interface LeaguePlayer {
   id: string;
@@ -32,14 +45,17 @@ interface League {
   bestOf: number;
   totalDays: number;
   status: string;
+  scoringSystem: string;
   createdAt: string;
   players: LeaguePlayer[];
   creator: { name: string };
   days: {
+    dayNumber: number;
     type: string;
     status: string;
     name: string | null;
     rounds: {
+      id: string;
       roundNumber: number;
       status: string;
       name: string | null;
@@ -81,6 +97,9 @@ export default function LeagueDetailPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [mockCount, setMockCount] = useState("");
   const [creatingMock, setCreatingMock] = useState(false);
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [editDescription, setEditDescription] = useState("");
+  const [savingDescription, setSavingDescription] = useState(false);
 
   const leagueId = params.id as string;
 
@@ -187,6 +206,28 @@ export default function LeagueDetailPage() {
     }
   }
 
+  async function handleSaveDescription() {
+    setSavingDescription(true);
+    try {
+      const res = await fetch(`/api/leagues/${leagueId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: editDescription || null }),
+      });
+      if (res.ok) {
+        fetchLeague();
+        setEditingDescription(false);
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to update description");
+      }
+    } catch {
+      alert("Failed to update description");
+    } finally {
+      setSavingDescription(false);
+    }
+  }
+
   async function handleDeleteLeague() {
     if (!confirm("Are you sure you want to delete this league? This cannot be undone.")) return;
 
@@ -254,6 +295,13 @@ export default function LeagueDetailPage() {
         }
       }
     }
+
+    if (!leagueWinner && league.status === "COMPLETED") {
+      const topPlayer = [...league.players].sort((a, b) => b.points - a.points)[0];
+      if (topPlayer) {
+        leagueWinner = { id: topPlayer.user.id, name: topPlayer.user.name };
+      }
+    }
   }
 
   const availablePlayers = allPlayers.filter(
@@ -262,16 +310,28 @@ export default function LeagueDetailPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-8">
+      <Breadcrumb className="mb-4">
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/leagues">Leagues</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>{league.name}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold">{league.name}</h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl sm:text-3xl font-bold">{league.name}</h1>
             <Badge variant="outline" className={statusColors[league.status]}>
               {league.status.replace("_", " ")}
             </Badge>
           </div>
-          <p className="text-muted-foreground mt-1">
-            {league.format} • Best of {league.bestOf} • {league.totalDays} league days
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
+            {formatDisplayName(league.format)} • Best of {league.bestOf} • {league.totalDays} league days
           </p>
         </div>
         <JoinLeagueButton
@@ -282,6 +342,95 @@ export default function LeagueDetailPage() {
         />
       </div>
 
+      <LeagueNav
+        leagueId={league.id}
+        active="overview"
+        rightSlot={
+          isAdmin ? (
+            <Button variant="destructive" size="sm" onClick={handleDeleteLeague}>
+              Delete League
+            </Button>
+          ) : undefined
+        }
+      />
+
+      {(() => {
+        let totalMatches = 0;
+        let completedDays = 0;
+        let activeRound: { id: string; roundNumber: number; name: string | null; dayNumber: number; dayName: string | null } | null = null;
+        for (const day of league.days) {
+          if (day.status === "COMPLETED") completedDays++;
+          for (const round of day.rounds) {
+            if (round.status === "IN_PROGRESS" && !activeRound) {
+              activeRound = { id: round.id, roundNumber: round.roundNumber, name: round.name, dayNumber: day.dayNumber, dayName: day.name };
+            }
+            for (const table of round.tables) {
+              for (const p of table.players) {
+                if (p.result && p.result !== "PENDING") totalMatches++;
+              }
+            }
+          }
+        }
+        return (
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-4 mb-8">
+            <Card>
+              <CardContent className="pt-6 flex items-center gap-3">
+                <Users className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-2xl font-bold"><AnimatedCounter value={league.players.length} /></p>
+                  <p className="text-xs text-muted-foreground">Players</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6 flex items-center gap-3">
+                <Swords className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-2xl font-bold"><AnimatedCounter value={totalMatches} /></p>
+                  <p className="text-xs text-muted-foreground">Matches Played</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6 flex items-center gap-3">
+                <Trophy className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-2xl font-bold"><AnimatedCounter value={completedDays} /><span className="text-sm font-normal text-muted-foreground">/{league.totalDays}</span></p>
+                  <p className="text-xs text-muted-foreground">Days Completed</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                {activeRound ? (
+                  <div className="flex items-center gap-3">
+                    <Clock className="h-5 w-5 text-muted-foreground" />
+                    <div className="flex-1">
+                      <p className="text-xs text-muted-foreground mb-1">
+                        Active Round — Day {activeRound.dayNumber}{activeRound.dayName ? ` (${activeRound.dayName})` : ""}, Round {activeRound.roundNumber}
+                      </p>
+                      <CountdownTimer
+                        defaultMinutes={isCommanderFormat(league.format) ? 75 : 50}
+                        roundId={activeRound.id}
+                        inline
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <Clock className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-2xl font-bold">—</p>
+                      <p className="text-xs text-muted-foreground">No Active Round</p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        );
+      })()}
+
       {leagueWinner && (
         <Card className="mb-8 border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-950">
           <CardContent className="pt-6 flex items-center gap-3">
@@ -290,14 +439,6 @@ export default function LeagueDetailPage() {
               <p className="text-sm text-muted-foreground">League Champion</p>
               <p className="text-xl font-bold">{leagueWinner.name}</p>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {league.description && (
-        <Card className="mb-8">
-          <CardContent className="pt-6">
-            <p>{league.description}</p>
           </CardContent>
         </Card>
       )}
@@ -378,6 +519,86 @@ export default function LeagueDetailPage() {
       )}
 
       <div className="grid gap-6 md:grid-cols-2">
+        <div className="flex flex-col gap-6">
+          {(isAdmin || league.description) && (
+            <Card>
+              <CardContent className="pt-6">
+                {editingDescription ? (
+                  <div className="space-y-3">
+                    <textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      maxLength={500}
+                      rows={3}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+                      placeholder="Add a description for this league..."
+                    />
+                    <div className="flex gap-2 justify-end">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setEditingDescription(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveDescription}
+                        disabled={savingDescription}
+                      >
+                        {savingDescription ? "Saving..." : "Save"}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start justify-between gap-4">
+                    <p className="text-sm">{league.description || "No description"}</p>
+                    {isAdmin && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setEditDescription(league.description || "");
+                          setEditingDescription(true);
+                        }}
+                      >
+                        Edit
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>League Info</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Created by</p>
+              <p>{league.creator.name}</p>
+            </div>
+            <Separator />
+            <div>
+              <p className="text-sm text-muted-foreground">Format</p>
+              <p>{formatDisplayName(league.format)}</p>
+            </div>
+            <Separator />
+            <div>
+              <p className="text-sm text-muted-foreground">Match Settings</p>
+              <p>Best of {league.bestOf} games</p>
+            </div>
+            <Separator />
+            <div>
+              <p className="text-sm text-muted-foreground">Duration</p>
+              <p>{league.totalDays} league days (2 rounds each)</p>
+            </div>
+          </CardContent>
+        </Card>
+        </div>
+
         <Card>
           <CardHeader>
             <CardTitle>Players ({league.players.length})</CardTitle>
@@ -391,6 +612,7 @@ export default function LeagueDetailPage() {
                   .sort((a, b) => b.points - a.points)
                   .map((player, index) => {
                     const playing = playingInfo[player.user.id];
+                    const isTop = league.status === "COMPLETED" && index === 0;
                     return (
                       <div key={player.id} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -398,6 +620,7 @@ export default function LeagueDetailPage() {
                           <span className={playing ? "text-red-500 font-semibold" : ""}>
                             {player.user.name}
                           </span>
+                          {isTop && <span className="text-yellow-500">🏆</span>}
                           {playing && (
                             <Badge variant="outline" className="text-red-500 border-red-500 text-xs">
                               R{playing.round} • T{playing.table} • Seat {playing.seat}
@@ -433,50 +656,6 @@ export default function LeagueDetailPage() {
             )}
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>League Info</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Created by</p>
-              <p>{league.creator.name}</p>
-            </div>
-            <Separator />
-            <div>
-              <p className="text-sm text-muted-foreground">Format</p>
-              <p>{league.format}</p>
-            </div>
-            <Separator />
-            <div>
-              <p className="text-sm text-muted-foreground">Match Settings</p>
-              <p>Best of {league.bestOf} games</p>
-            </div>
-            <Separator />
-            <div>
-              <p className="text-sm text-muted-foreground">Duration</p>
-              <p>{league.totalDays} league days (2 rounds each)</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="mt-8 flex gap-4">
-        <Link href="/leagues" className="inline-flex items-center justify-center rounded-lg border-border bg-background hover:bg-muted hover:text-foreground text-sm font-medium whitespace-nowrap transition-all h-8 gap-1.5 px-2.5">
-          Back to Leagues
-        </Link>
-        <Link href={`/leagues/${league.id}/standings`} className="inline-flex items-center justify-center rounded-lg bg-primary text-primary-foreground hover:bg-primary/80 text-sm font-medium whitespace-nowrap transition-all h-8 gap-1.5 px-2.5">
-          View Standings
-        </Link>
-        <Link href={`/leagues/${league.id}/days`} className="inline-flex items-center justify-center rounded-lg border-border bg-background hover:bg-muted hover:text-foreground text-sm font-medium whitespace-nowrap transition-all h-8 gap-1.5 px-2.5">
-          Manage Schedule
-        </Link>
-        {isAdmin && (
-          <Button variant="destructive" size="sm" onClick={handleDeleteLeague} className="ml-auto">
-            Delete League
-          </Button>
-        )}
       </div>
     </div>
   );

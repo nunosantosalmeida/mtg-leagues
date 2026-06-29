@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { generateBracket, getSeedsFromStandings, getCommanderTopCut } from "@/lib/playoff/bracket";
+import { isCommanderFormat } from "@/lib/types";
 
 export async function PATCH(
   request: NextRequest,
@@ -98,7 +99,7 @@ export async function PATCH(
           })
           .sort((a, b) => b.points - a.points || b.wins - a.wins || a.losses - b.losses || b.gameWinPercentage - a.gameWinPercentage);
 
-        const topCut = league.format === "COMMANDER"
+        const topCut = isCommanderFormat(league.format)
           ? getCommanderTopCut(standings.length)
           : Math.min(8, standings.length);
 
@@ -130,7 +131,7 @@ export async function PATCH(
           });
           let nextRoundNumber = (maxRound._max.roundNumber ?? 0) + 1;
 
-          if (league.format === "COMMANDER") {
+          if (isCommanderFormat(league.format)) {
             const hasSemifinals = bracket.pods.length > 0;
 
             if (hasSemifinals) {

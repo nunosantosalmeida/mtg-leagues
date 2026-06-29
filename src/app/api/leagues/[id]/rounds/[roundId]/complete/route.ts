@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { calculateTableResults, calculateBet, TableCalculationInput } from "@/lib/points/calculator";
+import { isCommanderFormat } from "@/lib/types";
 
 type CompleteParams = { id: string; roundId: string };
 
@@ -52,6 +53,20 @@ export async function POST(
       return NextResponse.json({ error: "Round not found" }, { status: 404 });
     }
 
+    const prevRound = await prisma.round.findFirst({
+      where: {
+        leagueDayId: round.leagueDayId,
+        roundNumber: round.roundNumber - 1,
+      },
+      select: { status: true },
+    });
+    if (prevRound && prevRound.status !== "COMPLETED") {
+      return NextResponse.json(
+        { error: "Previous round must be completed before closing this round" },
+        { status: 400 }
+      );
+    }
+
     if (round.status !== "IN_PROGRESS") {
       return NextResponse.json(
         { error: "Round is not in progress" },
@@ -71,13 +86,14 @@ export async function POST(
     }
 
     const isPlayoff = round.leagueDay.type === "PLAYOFF";
-    const isCommanderSemifinal = round.name === "Semifinals" && league.format === "COMMANDER";
-    const isCommanderFinals = round.name === "Finals" && league.format === "COMMANDER";
+    const isCommanderSemifinal = round.name === "Semifinals" && isCommanderFormat(league.format);
+    const isCommanderFinals = round.name === "Finals" && isCommanderFormat(league.format);
     const skipPointCalc = isCommanderSemifinal || isCommanderFinals;
     const isFinalRound = round.name === "Finals" || round.name === "Final";
+    const isCompetitive = league.scoringSystem === "COMPETITIVE";
 
     await prisma.$transaction(async (tx) => {
-      if (!skipPointCalc) {
+      if (!skipPointCalc && !isCompetitive) {
         for (const table of round.tables) {
           const calcInputs: TableCalculationInput[] = table.players.map((tp) => ({
             leaguePlayerId: tp.leaguePlayerId,
@@ -133,6 +149,45 @@ export async function POST(
               roundId,
               type: "ABSENT",
               amount: -bet,
+              description: `Day ${round.leagueDay.dayNumber} (${round.leagueDay.name || "Regular"}) - Round ${round.roundNumber} - Absent`,
+            },
+          });
+        }
+      }
+
+      if (isCompetitive && !skipPointCalc) {
+        for (const table of round.tables) {
+          for (const tp of table.players) {
+            const matchPoints = tp.matchPoints;
+            const currentPoints = tp.leaguePlayer.points;
+            const newPoints = currentPoints + matchPoints;
+
+            await tx.leaguePlayer.update({
+              where: { id: tp.leaguePlayerId },
+              data: { points: newPoints },
+            });
+
+            if (matchPoints !== 0) {
+              await tx.playerPointChange.create({
+                data: {
+                  leaguePlayerId: tp.leaguePlayerId,
+                  roundId,
+                  type: matchPoints > 0 ? "WIN" : "DRAW",
+                  amount: matchPoints,
+                  description: `Day ${round.leagueDay.dayNumber} (${round.leagueDay.name || "Regular"}) - Round ${round.roundNumber} - Table ${table.tableNumber} - ${matchPoints} MP`,
+                },
+              });
+            }
+          }
+        }
+
+        for (const absence of round.absences) {
+          await tx.playerPointChange.create({
+            data: {
+              leaguePlayerId: absence.leaguePlayerId,
+              roundId,
+              type: "ABSENT",
+              amount: 0,
               description: `Day ${round.leagueDay.dayNumber} (${round.leagueDay.name || "Regular"}) - Round ${round.roundNumber} - Absent`,
             },
           });
@@ -308,6 +363,139 @@ export async function POST(
             });
           }
         }
+      }
+    }
+
+    if (!isPlayoff && isCompetitive && !isCommanderFormat(league.format)) {
+      const nextRound = await prisma.round.findFirst({
+        where: { leagueDayId: round.leagueDayId, roundNumber: round.roundNumber + 1 },
+        select: { id: true, status: true, roundNumber: true },
+      });
+
+      if (nextRound && nextRound.status === "PLANNED") {
+        const { assignSwissPairings } = await import("@/lib/pairing/swiss");
+        const { calculateBet } = await import("@/lib/points/calculator");
+
+        const allPlayers = await prisma.leaguePlayer.findMany({
+          where: { leagueId: id, isActive: true },
+        });
+
+        const allTablePlayers = await prisma.tablePlayer.findMany({
+          where: {
+            table: {
+              round: {
+                leagueDay: { leagueId: id },
+                status: "COMPLETED",
+              },
+            },
+            result: { not: "PENDING" },
+          },
+          include: {
+            table: {
+              include: {
+                players: { select: { leaguePlayerId: true } },
+              },
+            },
+          },
+        });
+
+        const previousMatchups = new Set<string>();
+        for (const tp of allTablePlayers) {
+          if (tp.table.players.length === 2) {
+            const opp = tp.table.players.find((p) => p.leaguePlayerId !== tp.leaguePlayerId);
+            if (opp) {
+              const key = [tp.leaguePlayerId, opp.leaguePlayerId].sort().join(":");
+              previousMatchups.add(key);
+            }
+          }
+        }
+
+        const previousByeTables = await prisma.tablePlayer.findMany({
+          where: {
+            table: {
+              round: {
+                leagueDay: { leagueId: id },
+                status: "COMPLETED",
+              },
+            },
+            result: "WIN",
+          },
+          include: {
+            table: { select: { _count: { select: { players: true } } } },
+          },
+        });
+
+        const previousByes = new Set<string>();
+        for (const tp of previousByeTables) {
+          if (tp.table._count.players === 1) {
+            previousByes.add(tp.leaguePlayerId);
+          }
+        }
+
+        const playerMatchPoints = new Map<string, number>();
+        for (const p of allPlayers) {
+          const tpResults = allTablePlayers.filter(
+            (tp) => tp.leaguePlayerId === p.id
+          );
+          const mp = tpResults.reduce((sum, tp) => sum + tp.matchPoints, 0);
+          playerMatchPoints.set(p.id, mp);
+        }
+
+        const swissPlayers = allPlayers.map((p) => ({
+          id: p.id,
+          matchPoints: playerMatchPoints.get(p.id) ?? 0,
+        }));
+
+        const swissResult = assignSwissPairings(
+          swissPlayers,
+          previousMatchups,
+          previousByes,
+          nextRound.roundNumber,
+        );
+
+        const createdTables: Awaited<ReturnType<typeof prisma.table.create>>[] = [];
+
+        for (let i = 0; i < swissResult.pairs.length; i++) {
+          const pair = swissResult.pairs[i];
+          const table = await prisma.table.create({
+            data: {
+              roundId: nextRound.id,
+              tableNumber: i + 1,
+              players: {
+                create: [
+                  { leaguePlayerId: pair.player1Id, seatPosition: 1, pointsWagered: 0 },
+                  { leaguePlayerId: pair.player2Id, seatPosition: 2, pointsWagered: 0 },
+                ],
+              },
+            },
+          });
+          createdTables.push(table);
+        }
+
+        if (swissResult.byePlayerId) {
+          const BYE_MATCH_POINTS = 3;
+          await prisma.table.create({
+            data: {
+              roundId: nextRound.id,
+              tableNumber: createdTables.length + 1,
+              players: {
+                create: {
+                  leaguePlayerId: swissResult.byePlayerId,
+                  seatPosition: 1,
+                  result: "WIN",
+                  pointsWagered: 0,
+                  pointsChange: 0,
+                  matchPoints: BYE_MATCH_POINTS,
+                },
+              },
+            },
+          });
+        }
+
+        await prisma.round.update({
+          where: { id: nextRound.id },
+          data: { status: "IN_PROGRESS" },
+        });
       }
     }
 

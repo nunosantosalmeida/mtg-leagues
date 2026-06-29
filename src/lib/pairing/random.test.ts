@@ -54,6 +54,58 @@ describe("assignRandomTables", () => {
         ["a", "b", "c", "d", "e", "f", "g"].sort()
       );
     });
+
+    it("handles 37 players (3+3+3+4+4+4+4+4+4+4)", () => {
+      const players = Array.from({ length: 37 }, (_, i) => `p${i}`);
+      const result = assignRandomTables(players, 4);
+      const assigned = result.flat();
+      expect(assigned.sort()).toEqual(players.sort());
+      expect(new Set(assigned).size).toBe(37);
+    });
+
+    it("handles 9 players (3+3+3)", () => {
+      const players = ["a", "b", "c", "d", "e", "f", "g", "h", "i"];
+      const result = assignRandomTables(players, 4);
+      const assigned = result.flat();
+      expect(assigned.sort()).toEqual(players.sort());
+    });
+
+    it("handles 10 players (3+3+4)", () => {
+      const players = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"];
+      const result = assignRandomTables(players, 4);
+      const assigned = result.flat();
+      expect(assigned.sort()).toEqual(players.sort());
+    });
+
+    it("handles 11 players (3+4+4)", () => {
+      const players = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"];
+      const result = assignRandomTables(players, 4);
+      const assigned = result.flat();
+      expect(assigned.sort()).toEqual(players.sort());
+    });
+
+    it("handles 12 players (4+4+4)", () => {
+      const players = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"];
+      const result = assignRandomTables(players, 4);
+      const assigned = result.flat();
+      expect(assigned.sort()).toEqual(players.sort());
+      expect(result).toHaveLength(3);
+    });
+
+    it("no player appears in multiple tables", () => {
+      const players = Array.from({ length: 20 }, (_, i) => `p${i}`);
+      const result = assignRandomTables(players, 4);
+      const assigned = result.flat();
+      expect(new Set(assigned).size).toBe(assigned.length);
+    });
+
+    it("no table exceeds 4 players except the last", () => {
+      const players = Array.from({ length: 15 }, (_, i) => `p${i}`);
+      const result = assignRandomTables(players, 4);
+      for (let i = 0; i < result.length - 1; i++) {
+        expect(result[i].length).toBeLessThanOrEqual(4);
+      }
+    });
   });
 
   describe("1v1 tables", () => {
@@ -73,6 +125,13 @@ describe("assignRandomTables", () => {
     it("single player returns empty", () => {
       const result = assignRandomTables(["a"], 2);
       expect(result).toHaveLength(0);
+    });
+
+    it("all assigned players appear exactly once", () => {
+      const players = ["a", "b", "c", "d", "e", "f"];
+      const result = assignRandomTables(players, 2);
+      const assigned = result.flat();
+      expect(new Set(assigned).size).toBe(assigned.length);
     });
   });
 });

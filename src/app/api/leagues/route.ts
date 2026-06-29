@@ -31,6 +31,12 @@ export async function GET() {
             },
           },
         },
+        players: {
+          where: { isActive: true },
+          include: { user: { select: { name: true } } },
+          orderBy: { points: "desc" },
+          take: 1,
+        },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -66,6 +72,9 @@ export async function POST(request: NextRequest) {
         format: validated.format,
         bestOf: validated.bestOf,
         totalDays: validated.totalDays,
+        roundsPerDay: validated.roundsPerDay,
+        weekday: validated.weekday,
+        scoringSystem: validated.scoringSystem,
         status: "REGISTRATION",
         createdBy: session.user.id,
       },
