@@ -69,7 +69,35 @@ export async function POST(
       );
     }
 
-    const allRecorded = round.tables.every((table) =>
+    const isTraditional = league.scoringSystem === "TRADITIONAL";
+
+    // Auto-resolve bye tables: 1-player tables with PENDING result get a WIN
+    if (isTraditional && !isCommanderFormat(league.format)) {
+      const BYE_MATCH_POINTS = 3;
+      for (const table of round.tables) {
+        if (table.players.length === 1 && table.players[0].result === "PENDING") {
+          await prisma.tablePlayer.update({
+            where: { id: table.players[0].id },
+            data: {
+              result: "WIN",
+              matchPoints: BYE_MATCH_POINTS,
+              pointsWagered: 0,
+              pointsChange: 0,
+              gamesWon: 0,
+              gamesDrawn: 0,
+              gamesLost: 0,
+            },
+          });
+        }
+      }
+    }
+
+    // Check all results recorded (re-fetch tables to reflect bye updates)
+    const currentTables = await prisma.table.findMany({
+      where: { roundId },
+      include: { players: true },
+    });
+    const allRecorded = currentTables.every((table) =>
       table.players.every((p) => p.result !== "PENDING"),
     );
 
@@ -93,6 +121,9 @@ export async function POST(
             leaguePlayerId: tp.leaguePlayerId,
             points: tp.leaguePlayer.points,
             result: tp.result,
+            gamesWon: tp.gamesWon,
+            gamesDrawn: tp.gamesDrawn,
+            gamesLost: tp.gamesLost,
           })),
         })),
         absences: round.absences.map((a) => ({
@@ -110,7 +141,6 @@ export async function POST(
     const isCommanderSemifinal = round.name === "Semifinals" && isCommanderFormat(league.format);
     const isCommanderFinals = round.name === "Finals" && isCommanderFormat(league.format);
     const isFinalRound = round.name === "Finals" || round.name === "Final";
-    const isCompetitive = league.scoringSystem === "COMPETITIVE";
 
     if (isCommanderSemifinal) {
       await advanceCommanderSemifinals(id, roundId, round.leagueDayId);
@@ -120,7 +150,7 @@ export async function POST(
       await advancePlayoffWinners(roundId, round.roundNumber, round.leagueDayId);
     }
 
-    if (!isPlayoff && isCompetitive && !isCommanderFormat(league.format)) {
+    if (!isPlayoff && isTraditional && !isCommanderFormat(league.format)) {
       await autoAssignSwissNextRound(id, round.leagueDayId, round.roundNumber);
     }
 
@@ -393,7 +423,6 @@ async function autoAssignSwissNextRound(
     nextRound.roundNumber,
   );
 
-  const BYE_MATCH_POINTS = 3;
   const createdTables: { id: string }[] = [];
 
   for (let i = 0; i < swissResult.pairs.length; i++) {
@@ -424,10 +453,10 @@ async function autoAssignSwissNextRound(
           create: {
             leaguePlayerId: swissResult.byePlayerId,
             seatPosition: 1,
-            result: "WIN",
+            result: "PENDING",
             pointsWagered: 0,
             pointsChange: 0,
-            matchPoints: BYE_MATCH_POINTS,
+            matchPoints: 0,
           },
         },
       },

@@ -86,15 +86,17 @@ export async function POST(
       });
       const refreshedPoints = new Map(refreshedPlayers.map((p) => [p.id, p.points]));
 
+      const isTraditional = league.scoringSystem === "TRADITIONAL";
+
       for (const table of round.tables) {
         for (const tp of table.players) {
-          const currentPoints = refreshedPoints.get(tp.leaguePlayerId) ?? 1500;
+          const currentPoints = refreshedPoints.get(tp.leaguePlayerId) ?? (isTraditional ? 0 : 1500);
           await tx.tablePlayer.update({
             where: { id: tp.id },
             data: {
-              result: "PENDING",
-              pointsWagered: calculateBet(currentPoints),
+              pointsWagered: isTraditional ? 0 : calculateBet(currentPoints),
               pointsChange: 0,
+              matchPoints: 0,
             },
           });
         }

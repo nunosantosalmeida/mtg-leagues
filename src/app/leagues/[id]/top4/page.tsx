@@ -32,6 +32,7 @@ interface League {
   name: string;
   status: string;
   createdBy: string;
+  hasFinalPhase: boolean;
   days: { type: string }[];
 }
 
@@ -136,7 +137,7 @@ export default function Top4Page() {
         </div>
       </div>
 
-      <LeagueNav leagueId={leagueId} showBracket={league?.days.some(d => d.type === "PLAYOFF")} />
+      <LeagueNav leagueId={leagueId} showBracket={league?.hasFinalPhase || league?.days.some(d => d.type === "PLAYOFF")} />
 
       {league.status === "COMPLETED" && rankings.length > 0 ? (
         <Card>

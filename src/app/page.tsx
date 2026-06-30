@@ -11,6 +11,7 @@ interface League {
   name: string;
   format: string;
   status: string;
+  hasFinalPhase: boolean;
   _count: { players: number };
 }
 

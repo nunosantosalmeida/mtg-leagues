@@ -67,7 +67,7 @@ export async function POST(
     }
 
     if (round.tables.length > 0) {
-      if (league.scoringSystem === "COMPETITIVE" && !isCommanderFormat(league.format)) {
+      if (league.scoringSystem === "TRADITIONAL" && !isCommanderFormat(league.format)) {
         return NextResponse.json(
           { error: "Cannot re-assign tables for Traditional scoring leagues" },
           { status: 400 }
@@ -383,9 +383,7 @@ export async function POST(
     if (byePlayerId) {
       const byePlayer = activePlayers.find((p) => p.id === byePlayerId);
       if (byePlayer) {
-        if (is1v1 && league.scoringSystem === "COMPETITIVE") {
-          const BYE_MATCH_POINTS = 3;
-
+        if (is1v1 && league.scoringSystem === "TRADITIONAL") {
           await prisma.table.create({
             data: {
               roundId: roundId,
@@ -394,10 +392,10 @@ export async function POST(
                 create: {
                   leaguePlayerId: byePlayerId,
                   seatPosition: 1,
-                  result: "WIN",
+                  result: "PENDING",
                   pointsWagered: 0,
                   pointsChange: 0,
-                  matchPoints: BYE_MATCH_POINTS,
+                  matchPoints: 0,
                 },
               },
             },
@@ -413,7 +411,7 @@ export async function POST(
                 create: {
                   leaguePlayerId: byePlayerId,
                   seatPosition: 1,
-                  result: "WIN",
+                  result: "PENDING",
                   pointsWagered: bet,
                   pointsChange: 0,
                 },

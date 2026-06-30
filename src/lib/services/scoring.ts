@@ -15,6 +15,9 @@ export interface CloseRoundTableContext {
     leaguePlayerId: string;
     points: number;
     result: string;
+    gamesWon: number;
+    gamesDrawn: number;
+    gamesLost: number;
   }[];
 }
 
@@ -44,7 +47,7 @@ export class ScoringService {
     tx: TxClient,
     ctx: CloseRoundContext,
   ): Promise<void> {
-    const isCompetitive = ctx.scoringSystem === "COMPETITIVE";
+    const isTraditional = ctx.scoringSystem === "TRADITIONAL";
     const isCommanderSemifinal = ctx.roundName === "Semifinals" && isCommanderFormat(ctx.format);
     const isCommanderFinals = ctx.roundName === "Finals" && isCommanderFormat(ctx.format);
     const skipPointCalc = isCommanderSemifinal || isCommanderFinals;
@@ -57,7 +60,7 @@ export class ScoringService {
       return;
     }
 
-    if (!isCompetitive) {
+    if (!isTraditional) {
       await ScoringService.closeBetLeagueRound(tx, ctx);
     } else {
       await ScoringService.closeCompetitiveRound(tx, ctx);
@@ -139,6 +142,18 @@ export class ScoringService {
         const matchPoints = tp.result === "WIN" ? 3 : tp.result === "DRAW" ? 1 : 0;
         const currentPoints = tp.points;
         const newPoints = currentPoints + matchPoints;
+
+        await tx.tablePlayer.updateMany({
+          where: { tableId: table.tableId, leaguePlayerId: tp.leaguePlayerId },
+          data: {
+            matchPoints,
+            pointsChange: matchPoints,
+            pointsWagered: 0,
+            gamesWon: tp.gamesWon,
+            gamesDrawn: tp.gamesDrawn,
+            gamesLost: tp.gamesLost,
+          },
+        });
 
         await tx.leaguePlayer.update({
           where: { id: tp.leaguePlayerId },

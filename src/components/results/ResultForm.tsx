@@ -13,6 +13,14 @@ interface Player {
   pointsWagered: number;
 }
 
+interface TablePlayerResult {
+  leaguePlayerId: string;
+  result: string;
+  gamesWon: number;
+  gamesDrawn: number;
+  gamesLost: number;
+}
+
 interface ResultFormProps {
   tableId: string;
   tableNumber: number;
@@ -20,8 +28,9 @@ interface ResultFormProps {
   onResultRecorded: () => Promise<void>;
   playoff?: boolean;
   allowDraws?: boolean;
-  competitive?: boolean;
+  isTraditionalScoring?: boolean;
   bestOf?: number;
+  existingResults?: TablePlayerResult[];
 }
 
 function getScoreOptions(bestOf: number): { p1: number; p2: number; label: string }[] {
@@ -60,17 +69,42 @@ function getScoreOptions(bestOf: number): { p1: number; p2: number; label: strin
   });
 }
 
-export function ResultForm({ tableId, tableNumber, players, onResultRecorded, playoff, allowDraws = true, competitive, bestOf = 3 }: ResultFormProps) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [winnerId, setWinnerId] = useState<string | null>(null);
-  const [isDraw, setIsDraw] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [savedScore, setSavedScore] = useState<string | null>(null);
+function getInitialScore(results: TablePlayerResult[] | undefined, sorted: Player[]): string | null {
+  if (!results || results.length !== 2) return null;
+  const sortedResults = [...results].sort((a, b) => {
+    const aIdx = sorted.findIndex((p) => p.leaguePlayerId === a.leaguePlayerId);
+    const bIdx = sorted.findIndex((p) => p.leaguePlayerId === b.leaguePlayerId);
+    return aIdx - bIdx;
+  });
+  if (sortedResults[0].result === "PENDING") return null;
+  return `${sortedResults[0].gamesWon}-${sortedResults[1].gamesWon}`;
+}
 
+function getInitialWinnerId(results: TablePlayerResult[] | undefined): string | null {
+  if (!results) return null;
+  const winner = results.find((r) => r.result === "WIN");
+  return winner?.leaguePlayerId ?? null;
+}
+
+function getInitialIsDraw(results: TablePlayerResult[] | undefined): boolean {
+  if (!results || results.length === 0) return false;
+  return results.every((r) => r.result === "DRAW");
+}
+
+export function ResultForm({ tableId, tableNumber, players, onResultRecorded, playoff, allowDraws = true, isTraditionalScoring, bestOf = 3, existingResults }: ResultFormProps) {
   const sorted = [...players].sort((a, b) => a.seatPosition - b.seatPosition);
   const is1v1 = players.length === 2;
-  const isCompetitive1v1 = competitive && is1v1;
+  const isTraditionalScoring1v1 = isTraditionalScoring && is1v1;
+
+  const initialScore = getInitialScore(existingResults, sorted);
+  const hasResults = initialScore !== null || (existingResults && existingResults.length > 0 && existingResults[0].result !== "PENDING");
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [winnerId, setWinnerId] = useState<string | null>(() => isTraditionalScoring1v1 ? null : getInitialWinnerId(existingResults));
+  const [isDraw, setIsDraw] = useState(() => isTraditionalScoring1v1 ? false : getInitialIsDraw(existingResults));
+  const [saved, setSaved] = useState(hasResults);
+  const [savedScore, setSavedScore] = useState<string | null>(initialScore);
 
   async function submitResult(results: { leaguePlayerId: string; result: string; gamesWon?: number; gamesDrawn?: number; gamesLost?: number }[]) {
     setLoading(true);
@@ -162,28 +196,7 @@ export function ResultForm({ tableId, tableNumber, players, onResultRecorded, pl
     submitResult(results);
   }
 
-  if (saved) {
-    if (isCompetitive1v1) {
-      const score = savedScore ?? (isDraw ? "?" : "?");
-      return (
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Table {tableNumber}</CardTitle>
-              <Badge variant="outline">Best of {bestOf}</Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-center gap-3 text-sm">
-              <span className="font-medium text-right">{sorted[0].userName}</span>
-              <span className="font-mono font-bold text-base">{score}</span>
-              <span className="font-medium text-left">{sorted[1].userName}</span>
-            </div>
-          </CardContent>
-        </Card>
-      );
-    }
-
+  if (saved && !isTraditionalScoring1v1) {
     return (
       <Card>
         <CardHeader className="pb-2">
@@ -212,7 +225,7 @@ export function ResultForm({ tableId, tableNumber, players, onResultRecorded, pl
     );
   }
 
-  if (isCompetitive1v1) {
+  if (isTraditionalScoring1v1) {
     const scoreOptions = getScoreOptions(bestOf);
     return (
       <Card>
@@ -230,7 +243,11 @@ export function ResultForm({ tableId, tableNumber, players, onResultRecorded, pl
 
             <div className="flex items-center justify-center gap-3 text-sm">
               <span className="font-medium text-right">{sorted[0].userName}</span>
-              <span className="text-muted-foreground font-bold">vs</span>
+              {saved && savedScore ? (
+                <span className="font-mono font-bold text-base">{savedScore}</span>
+              ) : (
+                <span className="text-muted-foreground font-bold">vs</span>
+              )}
               <span className="font-medium text-left">{sorted[1].userName}</span>
             </div>
 
@@ -245,7 +262,7 @@ export function ResultForm({ tableId, tableNumber, players, onResultRecorded, pl
                     <Button
                       key={opt.label}
                       size="sm"
-                      variant="outline"
+                      variant={saved && savedScore === opt.label ? "default" : "outline"}
                       className="font-mono text-xs h-8 px-3"
                       onClick={() => handleScore(opt.p1, opt.p2)}
                       disabled={loading}
@@ -267,7 +284,7 @@ export function ResultForm({ tableId, tableNumber, players, onResultRecorded, pl
               })()}
             </div>
 
-            {!isCompetitive1v1 && allowDraws && (
+            {!isTraditionalScoring1v1 && allowDraws && (
               <Button
                 variant="outline"
                 onClick={handleDraw}
@@ -307,7 +324,7 @@ export function ResultForm({ tableId, tableNumber, players, onResultRecorded, pl
                   {is1v1 ? player.userName : `${player.seatPosition}° ${player.userName}`}
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  {Math.round(player.points)} pts{!playoff && !competitive && <> • Bet: {Math.round(player.pointsWagered)}</>}
+                  {Math.round(player.points)} pts{!playoff && !isTraditionalScoring && <> • Bet: {Math.round(player.pointsWagered)}</>}
                 </div>
               </div>
               <Button

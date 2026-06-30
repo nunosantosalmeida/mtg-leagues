@@ -65,7 +65,7 @@ export async function PATCH(
         where: { leagueId: id, type: "PLAYOFF" },
       });
 
-      if (allRegularClosed && !existingPlayoff) {
+      if (allRegularClosed && !existingPlayoff && league.hasFinalPhase) {
         const players = await prisma.leaguePlayer.findMany({
           where: { leagueId: id, isActive: true },
           include: {
@@ -115,10 +115,9 @@ export async function PATCH(
           const bracket = generateBracket(seeds, topCut, league.format);
 
           const lastRegularDay = regularDays[regularDays.length - 1];
-          const playoffDate = new Date();
-          if (lastRegularDay) {
-            playoffDate.setTime(lastRegularDay.date.getTime() + 7 * 24 * 60 * 60 * 1000);
-          }
+          const playoffDate = lastRegularDay
+            ? lastRegularDay.date
+            : new Date();
 
           const playoffDay = await prisma.leagueDay.create({
             data: {

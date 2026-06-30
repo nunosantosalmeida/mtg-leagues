@@ -49,6 +49,7 @@ interface LeagueData {
   name: string;
   format: string;
   scoringSystem: string;
+  hasFinalPhase: boolean;
   status: string;
   players: { user: { id: string; name: string }; points: number }[];
   days: { type: string; rounds: { id: string; name: string | null; status: string; tables: { tableNumber: number; players: { result: string; leaguePlayer: { user: { id: string; name: string } } }[] }[] }[] }[];
@@ -81,9 +82,9 @@ export default function StandingsPage() {
 
   const totalRounds = leagueData?.days.reduce((sum, d) => sum + d.rounds.length, 0) ?? 0;
   const totalRegularRounds = leagueData?.days.filter(d => d.type === "REGULAR").reduce((sum, d) => sum + d.rounds.length, 0) ?? 0;
-  const isCompetitive = leagueData?.scoringSystem === "COMPETITIVE";
+  const isTraditionalScoring = leagueData?.scoringSystem === "TRADITIONAL";
   const is1v1 = leagueData?.format && !isCommanderFormat(leagueData.format);
-  const isTraditional1v1 = is1v1 && !isCompetitive;
+  const isTraditional1v1 = is1v1 && !isTraditionalScoring;
 
   const isCommander = leagueData?.format && isCommanderFormat(leagueData.format);
   const topCut = isCommander ? getCommanderTopCut(standings.length) : 0;
@@ -157,7 +158,7 @@ export default function StandingsPage() {
         </div>
       </div>
 
-      <LeagueNav leagueId={leagueId} active="standings" showBracket={leagueData?.days.some(d => d.type === "PLAYOFF")} />
+      <LeagueNav leagueId={leagueId} active="standings" showBracket={leagueData?.hasFinalPhase || leagueData?.days.some(d => d.type === "PLAYOFF")} />
 
       <Card>
         <CardContent className="p-0">
@@ -168,23 +169,23 @@ export default function StandingsPage() {
                   <TableHead className="w-[60px]">#</TableHead>
                   <TableHead>Player</TableHead>
                   <TableHead className="text-right">
-                    {is1v1 ? "Score" : isCompetitive ? "MP" : "Points"}
+                    {is1v1 ? "Score" : isTraditionalScoring ? "MP" : "Points"}
                   </TableHead>
                   <TableHead className="text-center hidden sm:table-cell">Played</TableHead>
                   <TableHead className="text-center">W</TableHead>
                   <TableHead className="text-center">D</TableHead>
                   <TableHead className="text-center">L</TableHead>
-                  {!isCompetitive && !isTraditional1v1 && (
+                  {!isTraditionalScoring && !isTraditional1v1 && (
                     <TableHead className="text-center hidden md:table-cell">Pen</TableHead>
                   )}
-                  {isCompetitive && (
+                  {isTraditionalScoring && (
                     <>
                       <TableHead className="text-center hidden lg:table-cell">OMW%</TableHead>
                       <TableHead className="text-center hidden lg:table-cell">GW%</TableHead>
                       <TableHead className="text-center hidden lg:table-cell">OGW%</TableHead>
                     </>
                   )}
-                  {!isCompetitive && !isTraditional1v1 && (
+                  {!isTraditionalScoring && !isTraditional1v1 && (
                     <TableHead className="text-center hidden sm:table-cell">Attn</TableHead>
                   )}
                 </TableRow>
@@ -192,7 +193,7 @@ export default function StandingsPage() {
               <TableBody>
                 {standings.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={isCompetitive ? 10 : isTraditional1v1 ? 7 : 9} className="text-center py-8">
+                    <TableCell colSpan={isTraditionalScoring ? 10 : isTraditional1v1 ? 7 : 9} className="text-center py-8">
                       No players yet
                     </TableCell>
                   </TableRow>
@@ -227,7 +228,7 @@ export default function StandingsPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right font-mono text-lg">
-                        {leagueData?.scoringSystem === "COMPETITIVE" ? entry.matchPoints.toFixed(2) : entry.points.toFixed(2)}
+                        {leagueData?.scoringSystem === "TRADITIONAL" ? entry.matchPoints.toFixed(2) : entry.points.toFixed(2)}
                       </TableCell>
                       <TableCell className="text-center hidden sm:table-cell">{entry.roundsPlayed}</TableCell>
                       <TableCell className="text-center">
@@ -239,7 +240,7 @@ export default function StandingsPage() {
                       <TableCell className="text-center">
                         <span className="text-red-600">{entry.losses}</span>
                       </TableCell>
-                      {!isCompetitive && !isTraditional1v1 && (
+                      {!isTraditionalScoring && !isTraditional1v1 && (
                         <TableCell className="text-center hidden md:table-cell">
                           {entry.penalties > 0 ? (
                             <span className="text-red-600">{entry.penalties}</span>
@@ -248,7 +249,7 @@ export default function StandingsPage() {
                           )}
                         </TableCell>
                       )}
-                      {isCompetitive && (
+                      {isTraditionalScoring && (
                         <>
                           <TableCell className="text-center font-mono hidden lg:table-cell">
                             {(entry.omwPercentage * 100).toFixed(1)}%
@@ -261,7 +262,7 @@ export default function StandingsPage() {
                           </TableCell>
                         </>
                       )}
-                      {!isCompetitive && !isTraditional1v1 && (
+                      {!isTraditionalScoring && !isTraditional1v1 && (
                         <TableCell className="text-center hidden sm:table-cell">
                           <span className={attendance >= 80 ? "text-green-600" : attendance >= 50 ? "text-yellow-600" : "text-red-600"}>
                             {attendance}%

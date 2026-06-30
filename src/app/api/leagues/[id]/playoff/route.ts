@@ -92,7 +92,7 @@ export async function POST(
       );
     }
 
-    const standings = computeStandings(eligiblePlayers, league.scoringSystem === "COMPETITIVE");
+    const standings = computeStandings(eligiblePlayers, league.scoringSystem === "TRADITIONAL");
 
     const qualified = standings.slice(0, topCut);
     const seeds = getSeedsFromStandings(
@@ -115,10 +115,9 @@ export async function POST(
       orderBy: { dayNumber: "desc" },
     });
 
-    const playoffDate = new Date();
-    if (lastRegularDay) {
-      playoffDate.setTime(lastRegularDay.date.getTime() + 7 * 24 * 60 * 60 * 1000);
-    }
+    const playoffDate = lastRegularDay
+      ? lastRegularDay.date
+      : new Date();
 
     const playoffDay = await prisma.leagueDay.create({
       data: {
@@ -310,7 +309,7 @@ function computeStandings(
       };
     }[];
   }[],
-  isCompetitive: boolean,
+  isTraditional: boolean,
 ): PlayerStanding[] {
   const playerStats: PlayerStanding[] = [];
 
@@ -346,7 +345,7 @@ function computeStandings(
     });
   }
 
-  if (isCompetitive && !isCommanderFormat("1v1")) {
+  if (isTraditional && !isCommanderFormat("1v1")) {
     const matchRecords = new Map<string, MatchRecord[]>();
     const matchStats = new Map<string, { matchPoints: number; roundsPlayed: number; gamesWon: number; gamesDrawn: number; gamesLost: number }>();
 

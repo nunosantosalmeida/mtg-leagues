@@ -13,6 +13,7 @@ import { SeatDisplay } from "@/components/rounds/SeatDisplay";
 import { CountdownTimer } from "@/components/rounds/CountdownTimer";
 import { LeagueNav } from "@/components/leagues/LeagueNav";
 import { isCommanderFormat } from "@/lib/types";
+import { allResultsRecorded as checkAllResultsRecorded, noResultsRecorded as checkNoResultsRecorded, getDefaultExpandedRounds } from "@/lib/round-utils";
 import { Progress } from "@/components/ui/progress";
 import {
   Breadcrumb,
@@ -74,6 +75,7 @@ interface League {
   bestOf: number;
   status: string;
   createdBy: string;
+  hasFinalPhase: boolean;
   days: LeagueDay[];
   players: { id: string; userId: string; points: number; user: { id: string; userId: string; name: string; email: string } }[];
 }
@@ -121,11 +123,20 @@ export default function LeagueDayPage() {
     setOpenRounds((prev) => {
       const next = { ...prev };
       let hasChanges = false;
-      for (let i = 0; i < currentDay.rounds.length; i++) {
-        const rid = currentDay.rounds[i].id;
-        if (!(rid in next)) {
-          next[rid] = i === 0;
+
+      const inProgressRound = currentDay.rounds.find((r) => r.status === "IN_PROGRESS");
+      const allCompleted = currentDay.rounds.length > 0 && currentDay.rounds.every((r) => r.status === "COMPLETED");
+
+      for (const round of currentDay.rounds) {
+        if (!(round.id in next)) {
           hasChanges = true;
+        }
+        if (inProgressRound) {
+          next[round.id] = round.id === inProgressRound.id;
+        } else if (allCompleted) {
+          next[round.id] = false;
+        } else {
+          next[round.id] = round.id === currentDay.rounds[0]?.id;
         }
       }
       return hasChanges ? next : prev;
@@ -288,7 +299,9 @@ export default function LeagueDayPage() {
 
       if (response.ok) {
         const round = currentDay?.rounds.find((r) => r.id === roundId);
-        const canReassign = round && (round.status === "PLANNED" || (round.status === "IN_PROGRESS" && (round.tables.length === 0 || round.tables.every((t) => t.players.every((p) => p.result === "PENDING")))));
+        const roundIdx = currentDay?.rounds.findIndex((r) => r.id === roundId) ?? -1;
+        const prevRoundCompleted = roundIdx <= 0 || currentDay?.rounds[roundIdx - 1]?.status === "COMPLETED";
+        const canReassign = prevRoundCompleted && round && (round.status === "PLANNED" || (round.status === "IN_PROGRESS" && (round.tables.length === 0 || round.tables.every((t) => t.players.every((p) => p.result === "PENDING")))));
         if (canReassign) {
           await fetch(`/api/leagues/${leagueId}/rounds/${roundId}/tables/assign`, {
             method: "POST",
@@ -377,7 +390,7 @@ export default function LeagueDayPage() {
         )}
 
         <div className="mt-8">
-          <LeagueNav leagueId={leagueId} active="schedule" showBracket={league?.days.some(d => d.type === "PLAYOFF")} />
+          <LeagueNav leagueId={leagueId} active="schedule" showBracket={league?.hasFinalPhase || league?.days.some(d => d.type === "PLAYOFF")} />
         </div>
       </div>
     );
@@ -463,14 +476,8 @@ export default function LeagueDayPage() {
 
       <div className="space-y-6">
         {currentDay.rounds.map((round, roundIdx) => {
-          const allResultsRecorded = round.tables.length > 0 &&
-            round.tables.every((table) =>
-              table.players.every((p) => p.result !== "PENDING")
-            );
-          const noResultsRecorded = round.tables.length > 0 &&
-            round.tables.every((table) =>
-              table.players.every((p) => p.result === "PENDING")
-            );
+          const allResultsRecorded = checkAllResultsRecorded(round.tables);
+          const noResultsRecorded = checkNoResultsRecorded(round.tables);
           const prevRoundCompleted = roundIdx === 0 || currentDay.rounds[roundIdx - 1].status === "COMPLETED";
           const canAssign = prevRoundCompleted && (round.status === "PLANNED" || (round.status === "IN_PROGRESS" && (round.tables.length === 0 || noResultsRecorded)));
 
@@ -514,7 +521,7 @@ export default function LeagueDayPage() {
                       {assigning === round.id ? "Assigning..." : "Assign Tables"}
                     </Button>
                   )}
-                  {isAdmin && canAssign && round.tables.length > 0 && !(isPlayoff && !isCommanderFormat(league.format) && round.name !== "Quarterfinals") && !(league.scoringSystem === "COMPETITIVE" && !isCommanderFormat(league.format)) && (
+                  {isAdmin && canAssign && round.tables.length > 0 && !(isPlayoff && !isCommanderFormat(league.format) && round.name !== "Quarterfinals") && !(league.scoringSystem === "TRADITIONAL" && !isCommanderFormat(league.format)) && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -524,11 +531,11 @@ export default function LeagueDayPage() {
                       {assigning === round.id ? "Re-assigning..." : "Re-assign Tables"}
                     </Button>
                   )}
-                  {isAdmin && round.status === "IN_PROGRESS" && allResultsRecorded && (
+                  {isAdmin && round.status === "IN_PROGRESS" && (
                     <Button
                       size="sm"
                       onClick={() => handleCompleteRound(round.id)}
-                      disabled={closingRound === round.id}
+                      disabled={closingRound === round.id || !allResultsRecorded}
                     >
                       {closingRound === round.id ? "Closing..." : "Close Round"}
                     </Button>
@@ -565,7 +572,7 @@ export default function LeagueDayPage() {
                       <p className="text-sm text-muted-foreground">
                         {round.tables.length === 0
                           ? "Mark absent players before assigning tables:"
-                          : canAssign && !(league.scoringSystem === "COMPETITIVE" && !isCommanderFormat(league.format))
+                          : canAssign && !(league.scoringSystem === "TRADITIONAL" && !isCommanderFormat(league.format))
                             ? "Redefine absences and re-assign tables:"
                             : "Update absences:"}
                       </p>
@@ -600,7 +607,7 @@ export default function LeagueDayPage() {
                         onClick={() => handleSaveAbsences(round.id)}
                         disabled={savingAbsences === round.id}
                       >
-                        {savingAbsences === round.id ? "Saving..." : canAssign && !(league.scoringSystem === "COMPETITIVE" && !isCommanderFormat(league.format)) ? "Save & Assign" : "Save Absences"}
+                        {savingAbsences === round.id ? "Saving..." : canAssign && !(league.scoringSystem === "TRADITIONAL" && !isCommanderFormat(league.format)) ? "Save & Assign" : "Save Absences"}
                       </Button>
                     </CollapsibleContent>
                   </Collapsible>
@@ -643,10 +650,17 @@ export default function LeagueDayPage() {
                             points: p.leaguePlayer.points,
                             pointsWagered: p.pointsWagered,
                           }))}
+                          existingResults={table.players.map((p) => ({
+                            leaguePlayerId: p.leaguePlayer.id,
+                            result: p.result,
+                            gamesWon: p.gamesWon,
+                            gamesDrawn: p.gamesDrawn,
+                            gamesLost: p.gamesLost,
+                          }))}
                           onResultRecorded={fetchLeague}
                           playoff={isPlayoff}
                           allowDraws={allowDraws}
-                          competitive={league.scoringSystem === "COMPETITIVE"}
+                          isTraditionalScoring={league.scoringSystem === "TRADITIONAL"}
                           bestOf={league.bestOf}
                         />
                       );
@@ -678,15 +692,15 @@ export default function LeagueDayPage() {
                                     {player.result === "WIN" && (
                                       <Badge>WIN</Badge>
                                     )}
-                                    {player.result === "ABSENT" && league.scoringSystem !== "COMPETITIVE" && (
+                                    {player.result === "ABSENT" && league.scoringSystem !== "TRADITIONAL" && (
                                       <Badge variant="destructive">ABSENT</Badge>
                                     )}
-                                    {league.scoringSystem === "COMPETITIVE" && player.result !== "PENDING" && player.result !== "ABSENT" && (
+                                    {league.scoringSystem === "TRADITIONAL" && player.result !== "PENDING" && player.result !== "ABSENT" && (
                                       <span className="font-mono text-xs text-muted-foreground">
                                         {player.gamesWon}-{player.gamesLost}{player.gamesDrawn > 0 ? `-${player.gamesDrawn}` : ""}
                                       </span>
                                     )}
-                                    {player.result !== "PENDING" && !isPlayoff && league.scoringSystem !== "COMPETITIVE" && (
+                                    {player.result !== "PENDING" && !isPlayoff && league.scoringSystem !== "TRADITIONAL" && (
                                       <span
                                         className={
                                           Math.round(player.pointsChange) > 0
@@ -726,7 +740,7 @@ export default function LeagueDayPage() {
                       {absentPlayers.map((a) => (
                         <span key={a.leaguePlayerId} className="text-sm text-red-700 dark:text-red-400">
                           {a.leaguePlayer.user.name}
-                          {!isPlayoff && league.scoringSystem !== "COMPETITIVE" && (
+                          {!isPlayoff && league.scoringSystem !== "TRADITIONAL" && (
                             <span className="ml-1 font-mono">
                               ({Math.round(a.penalty)})
                             </span>
@@ -734,7 +748,7 @@ export default function LeagueDayPage() {
                         </span>
                       ))}
                     </div>
-                    {!isPlayoff && league.scoringSystem !== "COMPETITIVE" && (
+                    {!isPlayoff && league.scoringSystem !== "TRADITIONAL" && (
                       <p className="text-xs text-red-600 dark:text-red-500 mt-1">
                         Total penalty: {Math.round(totalPenalty)} pts
                       </p>

@@ -8,7 +8,8 @@ export const createLeagueSchema = z.object({
   totalDays: z.coerce.number().min(1).max(20).default(5),
   roundsPerDay: z.coerce.number().min(1).max(10).default(2),
   weekday: z.coerce.number().min(0).max(6).default(5),
-  scoringSystem: z.enum(["POINTS", "COMPETITIVE"]).default("POINTS"),
+  scoringSystem: z.enum(["POINTS", "TRADITIONAL"]).default("POINTS"),
+  hasFinalPhase: z.coerce.boolean().default(false),
 });
 
 export const joinLeagueSchema = z.object({
@@ -19,4 +20,5 @@ export const updateLeagueSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(500).optional(),
   status: z.enum(["REGISTRATION", "IN_PROGRESS", "COMPLETED", "TOP4"]).optional(),
+  hasFinalPhase: z.coerce.boolean().optional(),
 });

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { calculateLateEntryPoints } from "@/lib/points/calculator";
+import { calculateStartingPoints } from "@/lib/points/calculator";
 
 export async function POST(
   request: NextRequest,
@@ -78,35 +78,26 @@ export async function POST(
     );
 
     const missedRounds = league.status === "REGISTRATION" ? 0 : totalRounds;
-    const startingPoints = missedRounds > 0 ? calculateLateEntryPoints(missedRounds) : 1500;
+    const basePoints = calculateStartingPoints(league.scoringSystem, missedRounds);
 
     const leaguePlayer = await prisma.leaguePlayer.create({
       data: {
         leagueId: id,
         userId,
-        points: startingPoints,
+        points: basePoints,
       },
     });
 
-    if (missedRounds > 0) {
-      await prisma.playerPointChange.create({
-        data: {
-          leaguePlayerId: leaguePlayer.id,
-          type: "LATE_ENTRY",
-          amount: startingPoints - 1500,
-          description: `Added by admin, missed ${missedRounds} round(s)`,
-        },
-      });
-    } else {
-      await prisma.playerPointChange.create({
-        data: {
-          leaguePlayerId: leaguePlayer.id,
-          type: "INITIAL",
-          amount: 1500,
-          description: "Starting points",
-        },
-      });
-    }
+    await prisma.playerPointChange.create({
+      data: {
+        leaguePlayerId: leaguePlayer.id,
+        type: missedRounds > 0 && league.scoringSystem !== "TRADITIONAL" ? "LATE_ENTRY" : "INITIAL",
+        amount: missedRounds > 0 && league.scoringSystem !== "TRADITIONAL" ? basePoints - 1500 : basePoints,
+        description: missedRounds > 0 && league.scoringSystem !== "TRADITIONAL"
+          ? `Added by admin, missed ${missedRounds} round(s)`
+          : "Starting points",
+      },
+    });
 
     return NextResponse.json(leaguePlayer, { status: 201 });
   } catch (error) {

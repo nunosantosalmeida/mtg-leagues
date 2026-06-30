@@ -19,6 +19,7 @@ interface LeaguePlayerWithIncludes {
     gamesLost: number;
     table: {
       tableNumber: number;
+      round: { status: string };
       players: {
         leaguePlayerId: string;
         result: string;
@@ -89,10 +90,13 @@ export class StandingsService {
     })) as LeaguePlayerWithIncludes[];
 
     const standings: StandingEntry[] = leaguePlayers.map((lp) => {
-      const results = lp.tablePlayers.filter((tp) => tp.result !== "PENDING");
+      const completedTables = lp.tablePlayers.filter(
+        (tp) => tp.result !== "PENDING" && tp.table.round.status === "COMPLETED",
+      );
+      const results = completedTables;
 
       const penalties = lp.pointChanges.filter((pc) => pc.type === "ABSENT").length;
-      const losses = league.scoringSystem === "COMPETITIVE"
+      const losses = league.scoringSystem === "TRADITIONAL"
         ? results.filter((tp) => tp.result === "LOSS").length
         : results.filter((tp) => tp.result === "LOSS").length;
       const matchPoints = results.reduce((sum, tp) => sum + tp.matchPoints, 0);
@@ -124,7 +128,7 @@ export class StandingsService {
       };
     });
 
-    if (league.scoringSystem === "COMPETITIVE" && !isCommanderFormat(league.format)) {
+    if (league.scoringSystem === "TRADITIONAL" && !isCommanderFormat(league.format)) {
       return StandingsService.computeCompetitiveStandings(standings, leaguePlayers);
     }
 
@@ -155,7 +159,7 @@ export class StandingsService {
 
       const records: MatchRecord[] = [];
       for (const tp of playerLP.tablePlayers) {
-        if (tp.result === "PENDING") continue;
+        if (tp.result === "PENDING" || tp.table.round.status !== "COMPLETED") continue;
         const opponentsInTable = tp.table.players.filter(
           (p) => p.leaguePlayerId !== s.leaguePlayerId && p.result !== "PENDING",
         );

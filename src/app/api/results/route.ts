@@ -77,10 +77,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
-    const isCompetitive = table.round.leagueDay.league.scoringSystem === "COMPETITIVE";
+    const isTraditional = table.round.leagueDay.league.scoringSystem === "TRADITIONAL";
 
     await prisma.$transaction(async (tx) => {
-      await ResultService.recordResults(tx, tableId, validation.normalizedResults, isCompetitive);
+      await ResultService.recordResults(tx, tableId, validation.normalizedResults, isTraditional);
 
       const pendingPlayers = tablePlayers.filter(
         (tp) => tp.result === "PENDING" && !validation.normalizedResults.find((r) => r.leaguePlayerId === tp.leaguePlayerId),
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
 
       for (const tp of pendingPlayers) {
         const data: Record<string, unknown> = { result: "LOSS" };
-        if (isCompetitive) {
+        if (isTraditional) {
           data.matchPoints = 0;
           data.gamesWon = 0;
           data.gamesDrawn = 0;

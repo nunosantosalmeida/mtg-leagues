@@ -14,6 +14,7 @@ interface League {
   format: string;
   bestOf: number;
   status: string;
+  hasFinalPhase: boolean;
   createdAt: string;
   _count: { players: number };
   creator: { name: string };

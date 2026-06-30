@@ -55,6 +55,7 @@ interface League {
   format: string;
   status: string;
   createdBy: string;
+  hasFinalPhase: boolean;
   days: {
     id: string;
     dayNumber: number;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { calculateStartingPoints } from "@/lib/points/calculator";
 
 type MockParams = { id: string };
 
@@ -51,6 +52,8 @@ export async function POST(
     });
     const nextNum = existingNums.length > 0 ? Math.max(...existingNums) + 1 : 1;
 
+    const startingPoints = calculateStartingPoints(league.scoringSystem);
+
     const created = [];
 
     for (let i = 0; i < count; i++) {
@@ -71,6 +74,7 @@ export async function POST(
         data: {
           leagueId: id,
           userId: user.id,
+          points: startingPoints,
         },
       });
 
@@ -78,7 +82,7 @@ export async function POST(
         data: {
           leaguePlayerId: leaguePlayer.id,
           type: "INITIAL",
-          amount: 1500,
+          amount: startingPoints,
           description: "Starting points",
         },
       });

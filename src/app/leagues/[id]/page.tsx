@@ -46,6 +46,7 @@ interface League {
   totalDays: number;
   status: string;
   scoringSystem: string;
+  hasFinalPhase: boolean;
   createdAt: string;
   players: LeaguePlayer[];
   creator: { name: string };
@@ -100,6 +101,7 @@ export default function LeagueDetailPage() {
   const [editingDescription, setEditingDescription] = useState(false);
   const [editDescription, setEditDescription] = useState("");
   const [savingDescription, setSavingDescription] = useState(false);
+  const [togglingFinalPhase, setTogglingFinalPhase] = useState(false);
 
   const leagueId = params.id as string;
 
@@ -231,6 +233,28 @@ export default function LeagueDetailPage() {
     }
   }
 
+  async function handleToggleFinalPhase() {
+    if (!league) return;
+    setTogglingFinalPhase(true);
+    try {
+      const res = await fetch(`/api/leagues/${leagueId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hasFinalPhase: !league.hasFinalPhase }),
+      });
+      if (res.ok) {
+        fetchLeague();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to update setting");
+      }
+    } catch {
+      alert("Failed to update setting");
+    } finally {
+      setTogglingFinalPhase(false);
+    }
+  }
+
   async function handleDeleteLeague() {
     if (!confirm("Are you sure you want to delete this league? This cannot be undone.")) return;
 
@@ -348,7 +372,7 @@ export default function LeagueDetailPage() {
       <LeagueNav
         leagueId={league.id}
         active="overview"
-        showBracket={league.days.some(d => d.type === "PLAYOFF")}
+        showBracket={league.hasFinalPhase || league.days.some(d => d.type === "PLAYOFF")}
         rightSlot={
           isAdmin ? (
             <Button variant="destructive" size="sm" onClick={handleDeleteLeague}>
@@ -596,6 +620,36 @@ export default function LeagueDetailPage() {
             <div>
               <p className="text-sm text-muted-foreground">Duration</p>
               <p>{league.totalDays} league days (2 rounds each)</p>
+            </div>
+            <Separator />
+            <div>
+              <p className="text-sm text-muted-foreground">Scoring System</p>
+              <p>{league.scoringSystem === "TRADITIONAL" ? "Traditional" : "Bet League"}</p>
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Bracket / Finals Phase</p>
+                <p>{league.hasFinalPhase ? "Enabled" : "Disabled"}</p>
+              </div>
+              {isAdmin && league.status === "REGISTRATION" && (
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={league.hasFinalPhase}
+                  onClick={handleToggleFinalPhase}
+                  disabled={togglingFinalPhase}
+                  className={`peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+                    league.hasFinalPhase ? "bg-primary" : "bg-input"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${
+                      league.hasFinalPhase ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              )}
             </div>
           </CardContent>
         </Card>

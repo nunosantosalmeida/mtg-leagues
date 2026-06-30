@@ -26,7 +26,7 @@ const FORMAT_OPTIONS = [
 ] as const;
 
 const SCORING_OPTIONS = [
-  { value: "COMPETITIVE", label: "Traditional" },
+  { value: "TRADITIONAL", label: "Traditional" },
   { value: "POINTS", label: "Bet League" },
 ] as const;
 
@@ -71,6 +71,7 @@ export function LeagueForm() {
   const [roundsPerDay, setRoundsPerDay] = useState("2");
   const [weekday, setWeekday] = useState("5");
   const [scoringSystem, setScoringSystem] = useState("POINTS");
+  const [hasFinalPhase, setHasFinalPhase] = useState(false);
 
 
 
@@ -92,6 +93,7 @@ export function LeagueForm() {
           roundsPerDay: parseInt(roundsPerDay),
           weekday: parseInt(weekday),
           scoringSystem,
+          hasFinalPhase,
         }),
       });
 
@@ -226,10 +228,33 @@ export function LeagueForm() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Competitive uses match points (3/1/0) with OMW%, GW%, OGW% tiebreakers
+                Traditional uses match points (3/1/0) with OMW%, GW%, OGW% tiebreakers
               </p>
             </div>
           )}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={hasFinalPhase}
+              onClick={() => setHasFinalPhase(!hasFinalPhase)}
+              className={`peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+                hasFinalPhase ? "bg-primary" : "bg-input"
+              }`}
+            >
+              <span
+                className={`pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${
+                  hasFinalPhase ? "translate-x-5" : "translate-x-0"
+                }`}
+              />
+            </button>
+            <div className="space-y-0.5">
+              <Label>Bracket / Finals phase</Label>
+              <p className="text-xs text-muted-foreground">
+                Auto-generate a bracket or finals phase after the last regular day
+              </p>
+            </div>
+          </div>
         </CardContent>
         <CardFooter className="flex gap-2">
           <Button type="button" variant="outline" onClick={() => router.back()}>

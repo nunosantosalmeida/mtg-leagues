@@ -31,6 +31,7 @@ model League {
   roundsPerDay   Int      @default(2)
   weekday        Int      @default(5)
   scoringSystem  String   @default("POINTS")
+  hasFinalPhase  Boolean  @default(false)
   status         String   @default("REGISTRATION")
   createdBy      String
   createdAt      DateTime @default(now())

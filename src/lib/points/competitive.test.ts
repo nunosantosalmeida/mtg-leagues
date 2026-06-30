@@ -256,3 +256,142 @@ describe("sortCompetitiveStandings", () => {
     expect(standings[0].playerName).toBe(originalFirst);
   });
 });
+
+describe("tiebreaker integration: winners have higher GW% than losers", () => {
+  it("winner GW% > 0.33 when gamesWon=1", () => {
+    const gw = calculateGW(1, 0, 0);
+    expect(gw).toBeGreaterThan(MWP_FLOOR);
+  });
+
+  it("loser GW% is floored at 0.33", () => {
+    const gw = calculateGW(0, 0, 1);
+    expect(gw).toBe(MWP_FLOOR);
+  });
+
+  it("drawer GW% equals exactly the floor (1 draw game point / 3 possible = 1/3, floored to 0.33)", () => {
+    const gw = calculateGW(0, 1, 0);
+    // 1*1 / (1*3) = 0.3333... which is > MWP_FLOOR (0.33), so not floored
+    expect(gw).toBeCloseTo(1 / 3, 6);
+  });
+
+  it("multi-round: 2-0 record has GW% = 1.0", () => {
+    const gw = calculateGW(2, 0, 0);
+    expect(gw).toBe(1.0);
+  });
+
+  it("multi-round: 1-1 record has GW% above floor", () => {
+    const gw = calculateGW(1, 0, 1);
+    expect(gw).toBeGreaterThan(MWP_FLOOR);
+  });
+});
+
+describe("realistic tiebreaker scenario: 4 players, 2 rounds", () => {
+  it("correctly ranks players by MP > OMW% > GW% > OGW%", () => {
+    const matchRecords = new Map<string, MatchRecord[]>();
+    const matchStats = new Map<string, { matchPoints: number; roundsPlayed: number; gamesWon: number; gamesDrawn: number; gamesLost: number }>();
+
+    // Round 1: A beats B, C beats D
+    // Round 2: A beats C, B beats D
+    // Final: A=6, B=3, C=3, D=0
+
+    // A: 2 wins (beat B, C)
+    matchRecords.set("A", [
+      { opponentId: "B", result: "WIN", gamesWon: 1, gamesDrawn: 0, gamesLost: 0, isBye: false },
+      { opponentId: "C", result: "WIN", gamesWon: 1, gamesDrawn: 0, gamesLost: 0, isBye: false },
+    ]);
+    matchStats.set("A", { matchPoints: 6, roundsPlayed: 2, gamesWon: 2, gamesDrawn: 0, gamesLost: 0 });
+
+    // B: 1 win (beat D), 1 loss (to A)
+    matchRecords.set("B", [
+      { opponentId: "A", result: "WIN", gamesWon: 0, gamesDrawn: 0, gamesLost: 1, isBye: false },
+      { opponentId: "D", result: "WIN", gamesWon: 1, gamesDrawn: 0, gamesLost: 0, isBye: false },
+    ]);
+    matchStats.set("B", { matchPoints: 3, roundsPlayed: 2, gamesWon: 1, gamesDrawn: 0, gamesLost: 1 });
+
+    // C: 1 win (beat D), 1 loss (to A)
+    matchRecords.set("C", [
+      { opponentId: "D", result: "WIN", gamesWon: 1, gamesDrawn: 0, gamesLost: 0, isBye: false },
+      { opponentId: "A", result: "WIN", gamesWon: 0, gamesDrawn: 0, gamesLost: 1, isBye: false },
+    ]);
+    matchStats.set("C", { matchPoints: 3, roundsPlayed: 2, gamesWon: 1, gamesDrawn: 0, gamesLost: 1 });
+
+    // D: 2 losses
+    matchRecords.set("D", [
+      { opponentId: "C", result: "WIN", gamesWon: 0, gamesDrawn: 0, gamesLost: 1, isBye: false },
+      { opponentId: "B", result: "WIN", gamesWon: 0, gamesDrawn: 0, gamesLost: 1, isBye: false },
+    ]);
+    matchStats.set("D", { matchPoints: 0, roundsPlayed: 2, gamesWon: 0, gamesDrawn: 0, gamesLost: 2 });
+
+    const tiebreakers = computeTiebreakers(matchRecords, matchStats);
+
+    // A is 2-0: OMW% = avg(B's MWP, C's MWP) = avg(0.5, 0.5) = 0.5
+    expect(tiebreakers.get("A")!.gwPercentage).toBe(1.0);
+    expect(tiebreakers.get("A")!.omwPercentage).toBeCloseTo(0.5, 2);
+
+    // B is 1-1: OMW% = avg(A's MWP, D's MWP) = avg(1.0, 0.33) = 0.665
+    expect(tiebreakers.get("B")!.gwPercentage).toBeCloseTo(0.5, 2);
+
+    // C is 1-1: OMW% = avg(D's MWP, A's MWP) = avg(0.33, 1.0) = 0.665
+    expect(tiebreakers.get("C")!.gwPercentage).toBeCloseTo(0.5, 2);
+
+    // D is 0-2: all losses
+    expect(tiebreakers.get("D")!.gwPercentage).toBe(MWP_FLOOR);
+
+    // Build standings and sort
+    const standings: CompetitiveStanding[] = [
+      { leaguePlayerId: "A", playerName: "A", matchPoints: 6, wins: 2, draws: 0, losses: 0, roundsPlayed: 2, omwPercentage: tiebreakers.get("A")!.omwPercentage, gwPercentage: tiebreakers.get("A")!.gwPercentage, ogwPercentage: tiebreakers.get("A")!.ogwPercentage, gamesWon: 2, gamesDrawn: 0, gamesLost: 0 },
+      { leaguePlayerId: "B", playerName: "B", matchPoints: 3, wins: 1, draws: 0, losses: 1, roundsPlayed: 2, omwPercentage: tiebreakers.get("B")!.omwPercentage, gwPercentage: tiebreakers.get("B")!.gwPercentage, ogwPercentage: tiebreakers.get("B")!.ogwPercentage, gamesWon: 1, gamesDrawn: 0, gamesLost: 1 },
+      { leaguePlayerId: "C", playerName: "C", matchPoints: 3, wins: 1, draws: 0, losses: 1, roundsPlayed: 2, omwPercentage: tiebreakers.get("C")!.omwPercentage, gwPercentage: tiebreakers.get("C")!.gwPercentage, ogwPercentage: tiebreakers.get("C")!.ogwPercentage, gamesWon: 1, gamesDrawn: 0, gamesLost: 1 },
+      { leaguePlayerId: "D", playerName: "D", matchPoints: 0, wins: 0, draws: 0, losses: 2, roundsPlayed: 2, omwPercentage: tiebreakers.get("D")!.omwPercentage, gwPercentage: tiebreakers.get("D")!.gwPercentage, ogwPercentage: tiebreakers.get("D")!.ogwPercentage, gamesWon: 0, gamesDrawn: 0, gamesLost: 2 },
+    ];
+
+    const sorted = sortCompetitiveStandings(standings);
+    expect(sorted[0].playerName).toBe("A");
+    // B and C have same MP, OMW%, GW%, OGW% — order may vary
+    expect(sorted[3].playerName).toBe("D");
+  });
+});
+
+describe("bye in tiebreakers", () => {
+  it("bye is excluded from OMW and OGW calculations", () => {
+    const matchRecords = new Map<string, MatchRecord[]>();
+    const matchStats = new Map<string, { matchPoints: number; roundsPlayed: number; gamesWon: number; gamesDrawn: number; gamesLost: number }>();
+
+    // A: 1 real win + 1 bye
+    matchRecords.set("A", [
+      { opponentId: "B", result: "WIN", gamesWon: 1, gamesDrawn: 0, gamesLost: 0, isBye: false },
+      { opponentId: "__bye__", result: "WIN", gamesWon: 0, gamesDrawn: 0, gamesLost: 0, isBye: true },
+    ]);
+    matchStats.set("A", { matchPoints: 6, roundsPlayed: 2, gamesWon: 1, gamesDrawn: 0, gamesLost: 0 });
+
+    // B: 1 loss
+    matchRecords.set("B", [
+      { opponentId: "A", result: "WIN", gamesWon: 0, gamesDrawn: 0, gamesLost: 1, isBye: false },
+    ]);
+    matchStats.set("B", { matchPoints: 0, roundsPlayed: 1, gamesWon: 0, gamesDrawn: 0, gamesLost: 1 });
+
+    const tiebreakers = computeTiebreakers(matchRecords, matchStats);
+
+    // A's OMW should only consider B (not the bye), so OMW = B's MWP = 0.33
+    expect(tiebreakers.get("A")!.omwPercentage).toBeCloseTo(MWP_FLOOR, 2);
+    // A's GW% = 1.0 (1 game won, 0 lost)
+    expect(tiebreakers.get("A")!.gwPercentage).toBe(1.0);
+    // A's OGW should only consider B (not the bye)
+    expect(tiebreakers.get("A")!.ogwPercentage).toBeCloseTo(MWP_FLOOR, 2);
+  });
+});
+
+describe("draws affecting GW%", () => {
+  it("draws lower GW% compared to wins", () => {
+    const winGW = calculateGW(1, 0, 0);
+    const drawGW = calculateGW(0, 1, 0);
+    expect(winGW).toBeGreaterThan(drawGW);
+  });
+
+  it("draws higher GW% compared to losses", () => {
+    const drawGW = calculateGW(0, 1, 0);
+    const lossGW = calculateGW(0, 0, 1);
+    // draw: 1/3 = 0.333... > MWP_FLOOR (0.33), loss: 0/3 = 0 floored to 0.33
+    expect(drawGW).toBeGreaterThan(lossGW);
+  });
+});

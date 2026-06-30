@@ -40,6 +40,7 @@ interface League {
   name: string;
   status: string;
   createdBy: string;
+  hasFinalPhase: boolean;
   days: LeagueDay[];
   players: { id: string }[];
 }
@@ -124,7 +125,7 @@ export default function LeagueDaysPage() {
         </div>
       </div>
 
-      <LeagueNav leagueId={leagueId} active="schedule" showBracket={league?.days.some(d => d.type === "PLAYOFF")} />
+      <LeagueNav leagueId={leagueId} active="schedule" showBracket={league?.hasFinalPhase || league?.days.some(d => d.type === "PLAYOFF")} />
 
       {isAdmin && league.days.length === 0 && (league.status === "REGISTRATION" || league.status === "IN_PROGRESS") && (
         <div className="mb-4">

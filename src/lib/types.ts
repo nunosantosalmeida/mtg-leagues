@@ -4,7 +4,7 @@ export type LeagueStatus = "REGISTRATION" | "IN_PROGRESS" | "COMPLETED" | "TOP4"
 
 export type Format = "COMMANDER" | "COMMANDER_PRECONS" | "CEDH" | "STANDARD" | "MODERN" | "PIONEER" | "PAUPER";
 
-export type ScoringSystem = "POINTS" | "COMPETITIVE";
+export type ScoringSystem = "POINTS" | "TRADITIONAL";
 
 export function isCommanderFormat(format: string): boolean {
   return format === "COMMANDER" || format === "COMMANDER_PRECONS" || format === "CEDH";
@@ -26,7 +26,7 @@ export function formatDisplayName(format: string): string {
 export function scoringDisplayName(scoring: string): string {
   switch (scoring) {
     case "POINTS": return "Bet League";
-    case "COMPETITIVE": return "Traditional";
+    case "TRADITIONAL": return "Traditional";
     default: return scoring;
   }
 }
@@ -83,6 +83,7 @@ export interface League {
   roundsPerDay: number;
   weekday: number;
   scoringSystem: ScoringSystem;
+  hasFinalPhase: boolean;
   status: LeagueStatus;
   createdBy: string;
   createdAt: Date;

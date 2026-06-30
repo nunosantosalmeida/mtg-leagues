@@ -1,7 +1,18 @@
 const BET_PERCENTAGE = 0.07;
 const STARTING_POINTS = 1500;
+const TRADITIONAL_STARTING_POINTS = 0;
 const LATE_ENTRY_MULTIPLIER = 0.93;
 const FIVE_PLAYER_PENALTY = 0.80;
+
+export function calculateStartingPoints(scoringSystem: string, missedRounds: number = 0): number {
+  if (scoringSystem === "TRADITIONAL") {
+    return TRADITIONAL_STARTING_POINTS;
+  }
+  if (missedRounds > 0) {
+    return calculateLateEntryPoints(missedRounds);
+  }
+  return STARTING_POINTS;
+}
 
 export function calculateBet(points: number): number {
   return Math.floor(points * BET_PERCENTAGE * 100) / 100;

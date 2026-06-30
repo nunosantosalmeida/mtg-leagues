@@ -5,6 +5,7 @@ import {
   calculateWinnerPot,
   calculateDrawSplit,
   calculateTableResults,
+  calculateStartingPoints,
 } from "@/lib/points/calculator";
 
 describe("calculateBet", () => {
@@ -156,5 +157,27 @@ describe("calculateTableResults", () => {
 
   it("handles empty array", () => {
     expect(calculateTableResults([])).toEqual([]);
+  });
+});
+
+describe("calculateStartingPoints", () => {
+  it("returns 0 for TRADITIONAL scoring", () => {
+    expect(calculateStartingPoints("TRADITIONAL")).toBe(0);
+  });
+
+  it("returns 0 for TRADITIONAL even with missed rounds", () => {
+    expect(calculateStartingPoints("TRADITIONAL", 3)).toBe(0);
+  });
+
+  it("returns 1500 for POINTS scoring with no missed rounds", () => {
+    expect(calculateStartingPoints("POINTS")).toBe(1500);
+  });
+
+  it("returns late entry points for POINTS scoring with missed rounds", () => {
+    expect(calculateStartingPoints("POINTS", 1)).toBe(calculateLateEntryPoints(1));
+  });
+
+  it("defaults to 0 missed rounds", () => {
+    expect(calculateStartingPoints("POINTS")).toBe(1500);
   });
 });
