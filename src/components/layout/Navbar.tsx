@@ -12,21 +12,20 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { usePathname } from "next/navigation";
 import { ThemeToggle } from "./ThemeToggle";
+import Image from "next/image";
 
 export function Navbar() {
   const { data: session } = useSession();
   const pathname = usePathname();
 
-  const isActive = (path: string) =>
-    pathname === path || pathname.startsWith(path + "/");
+  const isActive = (path: string) => pathname === path || pathname.startsWith(path + "/");
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 border-b bg-background/80 backdrop-blur-md">
       <div className="container mx-auto px-4 h-14 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2.5 group">
           <span className="text-lg font-bold tracking-tight">
-            <span className="text-primary">MTG</span>{" "}
-            <span className="text-muted-foreground font-medium">Leagues</span>
+            <Image src="/mtgl-logo-dark.png" alt="MTG Leagues Logo" width={100} height={100} />
           </span>
         </Link>
 
