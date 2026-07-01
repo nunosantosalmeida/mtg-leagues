@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { CarouselComponent } from "./components/carousel/Carousel";
 
 interface League {
   id: string;
@@ -42,14 +43,7 @@ export default function HomePage() {
 
   return (
     <div className="container mx-auto px-4 py-10 max-w-5xl">
-      <div className="mb-10 text-center">
-        <h1 className="text-5xl font-bold tracking-tight mb-3">
-          MTG Leagues
-        </h1>
-        <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-          Track your Magic: The Gathering league standings, results, and rankings
-        </p>
-      </div>
+      <CarouselComponent />
 
       {!session && status !== "loading" && (
         <Card className="mb-10 border-dashed">
@@ -148,7 +142,7 @@ export default function HomePage() {
                 <p className="text-sm text-muted-foreground mb-3">
                   No leagues accepting registrations
                 </p>
-                {(session?.user as any)?.role === "ADMIN" && (
+                {(session?.user as { role: string })?.role === "ADMIN" && (
                   <Link
                     href="/leagues/new"
                     className="text-sm text-foreground hover:underline font-medium"
@@ -181,44 +175,6 @@ export default function HomePage() {
           </CardContent>
         </Card>
       </div>
-
-      <Card className="border-dashed">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-base text-center">How It Works</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-6 md:grid-cols-3">
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-muted text-sm font-bold mb-3">
-                1
-              </div>
-              <h3 className="font-medium text-sm mb-1">Create or Join</h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Join leagues during registration period, or check with an admin if you can
-                still join after it started
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-muted text-sm font-bold mb-3">
-                2
-              </div>
-              <h3 className="font-medium text-sm mb-1">Play Rounds</h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Compete every week. 7% of points are at stake each round! :)
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-muted text-sm font-bold mb-3">
-                3
-              </div>
-              <h3 className="font-medium text-sm mb-1">Climb the Rankings</h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Win games to earn points. Top cut qualifies for the final showdown!!!
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

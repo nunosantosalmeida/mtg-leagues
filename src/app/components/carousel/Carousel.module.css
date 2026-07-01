@@ -1,0 +1,16 @@
+.carousel {
+}
+
+.carousel > span {
+  display: none;
+}
+
+.slide1 {
+  background-image: url("/pws.jpg");
+  /* background-position-y: -140px; */
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-blend-mode: difference;
+  height: 380px;
+}
